@@ -1,0 +1,16 @@
+services:
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=production
+      - DASHBOARD_CONFIG=/app/config/config.yaml
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-admin}
+    restart: unless-stopped
+    # Use host network to access Tailscale
+    # network_mode: host
