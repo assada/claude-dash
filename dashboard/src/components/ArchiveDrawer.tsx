@@ -23,9 +23,7 @@ function shortName(name: string): string {
 
 const containerVariants = {
   hidden: {},
-  show: {
-    transition: { staggerChildren: 0.05 },
-  },
+  show: { transition: { staggerChildren: 0.05 } },
 };
 
 const cardVariants = {
@@ -63,8 +61,7 @@ export function ArchiveDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-50"
-            style={{ background: "rgba(0, 0, 0, 0.5)" }}
+            className="fixed inset-0 z-50 bg-black/50"
           />
 
           {/* Drawer */}
@@ -73,23 +70,11 @@ export function ArchiveDrawer({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col"
-            style={{
-              maxHeight: "50vh",
-              background: "rgba(23, 23, 23, 0.95)",
-              backdropFilter: "blur(20px)",
-              borderTop: "1px solid #404040",
-              borderRadius: "16px 16px 0 0",
-            }}
+            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col max-h-[50vh] bg-surface-0/95 backdrop-blur-xl border-t border-border rounded-t-2xl"
           >
             {/* Header */}
-            <div
-              className="flex items-center justify-between px-6 py-4 shrink-0"
-              style={{ borderBottom: "1px solid #262626" }}
-            >
-              <span
-                style={{ fontSize: 15, fontWeight: 600, color: "#e5e5e5" }}
-              >
+            <div className="flex items-center justify-between px-6 py-4 shrink-0 border-b border-surface-1">
+              <span className="text-[15px] font-semibold text-text-secondary">
                 Archived Sessions ({sessions.length})
               </span>
               <div className="flex items-center gap-2">
@@ -100,45 +85,12 @@ export function ArchiveDrawer({
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                     onClick={onClear}
-                    className="flex items-center gap-1"
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 6,
-                      border: "1px solid #404040",
-                      background: "#262626",
-                      color: "#737373",
-                      fontSize: 11,
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#3a1a1a";
-                      e.currentTarget.style.borderColor = "#ef4444";
-                      e.currentTarget.style.color = "#ef4444";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "#262626";
-                      e.currentTarget.style.borderColor = "#404040";
-                      e.currentTarget.style.color = "#737373";
-                    }}
+                    className="btn-danger flex items-center gap-1 px-3 py-1.5 text-[11px]"
                   >
                     <Trash2 size={11} /> Clear All
                   </motion.button>
                 )}
-                <button
-                  onClick={onClose}
-                  style={{
-                    padding: 6,
-                    borderRadius: 6,
-                    color: "#737373",
-                    transition: "color 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = "#e5e5e5";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "#737373";
-                  }}
-                >
+                <button onClick={onClose} className="btn-ghost p-1.5">
                   <X size={16} />
                 </button>
               </div>
@@ -147,10 +99,7 @@ export function ArchiveDrawer({
             {/* Body */}
             <div className="overflow-y-auto hide-scrollbar px-6 py-4">
               {sessions.length === 0 ? (
-                <div
-                  className="text-center py-8"
-                  style={{ fontSize: 13, color: "#525252" }}
-                >
+                <div className="text-center py-8 text-[13px] text-text-faint">
                   No archived sessions
                 </div>
               ) : (
@@ -167,76 +116,31 @@ export function ArchiveDrawer({
                       onDoubleClick={() =>
                         onOpenTerminal(session.serverId, session.id)
                       }
-                      className="relative group cursor-pointer select-none"
-                      style={{
-                        borderRadius: 12,
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        padding: 16,
-                        background:
-                          "linear-gradient(135deg, #2a2a2a 0%, #222222 100%)",
-                        opacity: 0.7,
-                        transition: "all 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = "1";
-                        e.currentTarget.style.borderColor =
-                          "rgba(255,255,255,0.12)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = "0.7";
-                        e.currentTarget.style.borderColor =
-                          "rgba(255,255,255,0.06)";
-                      }}
+                      className="relative group cursor-pointer select-none rounded-xl border border-border-subtle p-4 bg-[linear-gradient(135deg,#2a2a2a_0%,#222_100%)] opacity-70 hover:opacity-100 hover:border-border-hover transition-all"
                     >
-                      {/* Header */}
                       <div className="flex items-center gap-2 mb-2">
                         <StatusIndicator state={session.state} />
-                        <span
-                          className="truncate"
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 500,
-                            color: "#d4d4d4",
-                          }}
-                        >
+                        <span className="text-[13px] font-medium text-neutral-300 truncate">
                           {shortName(session.name)}
                         </span>
-                        <span
-                          className="ml-auto"
-                          style={{ fontSize: 11, color: "#525252" }}
-                        >
+                        <span className="ml-auto text-[11px] text-text-faint">
                           {timeSince(session.archivedAt)} ago
                         </span>
                       </div>
-
-                      {/* State */}
                       <div className="mb-2">
                         <StateLabel state={session.state} />
                       </div>
-
-                      {/* Server label */}
-                      <div style={{ fontSize: 11, color: "#525252", marginBottom: 4 }}>
+                      <div className="text-[11px] text-text-faint mb-1">
                         {session.serverName}
                       </div>
-
-                      {/* Workdir */}
-                      <div
-                        className="flex items-center gap-1 mb-2"
-                        style={{ fontSize: 11, color: "#525252" }}
-                      >
+                      <div className="flex items-center gap-1 mb-2 text-[11px] text-text-faint">
                         <FolderOpen size={11} />
-                        <span className="truncate">
-                          {session.workdir || "~"}
-                        </span>
+                        <span className="truncate">{session.workdir || "~"}</span>
                       </div>
-
-                      {/* Last line preview */}
                       {session.last_line && (
                         <div
-                          className="truncate"
+                          className="text-[11px] text-border truncate"
                           style={{
-                            fontSize: 11,
-                            color: "#404040",
                             fontFamily:
                               "'JetBrains Mono NF', 'JetBrains Mono', Menlo, monospace",
                           }}
@@ -248,19 +152,7 @@ export function ArchiveDrawer({
                   ))}
                 </motion.div>
               )}
-
-              {/* Scroll fade */}
-              {sessions.length > 4 && (
-                <div
-                  className="sticky bottom-0 left-0 right-0 pointer-events-none"
-                  style={{
-                    height: 40,
-                    marginTop: -40,
-                    background:
-                      "linear-gradient(to top, rgba(23,23,23,0.95) 0%, transparent 100%)",
-                  }}
-                />
-              )}
+              {sessions.length > 4 && <div className="scroll-fade-bottom" />}
             </div>
           </motion.div>
         </>

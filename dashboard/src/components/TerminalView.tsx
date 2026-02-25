@@ -9,7 +9,6 @@ import { StatusIndicator, StateLabel } from "./StatusIndicator";
 import { ArrowLeft, X } from "lucide-react";
 import type { SessionState } from "@/lib/types";
 
-// Proper binary-safe base64 encode/decode for terminal data
 function encodeBase64(str: string): string {
   const encoder = new TextEncoder();
   const bytes = encoder.encode(str);
@@ -52,7 +51,6 @@ export function TerminalView({
   const attachedRef = useRef(false);
   const initialStateRef = useRef(sessionState);
 
-  // Terminal setup — runs ONCE on mount
   useEffect(() => {
     if (!terminalRef.current) return;
 
@@ -94,7 +92,6 @@ export function TerminalView({
 
     term.open(terminalRef.current);
 
-    // Small delay to ensure container has real dimensions before fit
     requestAnimationFrame(() => {
       fitAddon.fit();
       term.focus();
@@ -103,39 +100,22 @@ export function TerminalView({
     termRef.current = term;
     fitRef.current = fitAddon;
 
-    // Handle terminal input — send raw bytes to PTY
     term.onData((data) => {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: "terminal_input",
-            data: encodeBase64(data),
-          })
-        );
+        ws.send(JSON.stringify({ type: "terminal_input", data: encodeBase64(data) }));
       }
     });
 
-    // Also handle binary data (for special keys)
     term.onBinary((data) => {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
-        // data is already a binary string, encode directly
-        ws.send(
-          JSON.stringify({
-            type: "terminal_input",
-            data: btoa(data),
-          })
-        );
+        ws.send(JSON.stringify({ type: "terminal_input", data: btoa(data) }));
       }
     });
 
-    // Handle window resize
-    const handleResize = () => {
-      fitAddon.fit();
-    };
+    const handleResize = () => { fitAddon.fit(); };
 
-    // When xterm resizes, tell the agent
     term.onResize(({ cols, rows }) => {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -145,83 +125,47 @@ export function TerminalView({
 
     window.addEventListener("resize", handleResize);
 
-    // Connect WebSocket
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setConnected(true);
-
       const isDead = initialStateRef.current === "dead";
-
       if (isDead) {
-        // Dead session: just get scrollback (read-only)
-        ws.send(
-          JSON.stringify({
-            type: "get_scrollback",
-            serverId,
-            sessionId,
-          })
-        );
+        ws.send(JSON.stringify({ type: "get_scrollback", serverId, sessionId }));
       } else {
-        // Live session: attach directly — tmux will redraw the screen
         const cols = term.cols || 200;
         const rows = term.rows || 50;
-        ws.send(
-          JSON.stringify({
-            type: "terminal_attach",
-            serverId,
-            sessionId,
-            cols,
-            rows,
-          })
-        );
+        ws.send(JSON.stringify({ type: "terminal_attach", serverId, sessionId, cols, rows }));
         attachedRef.current = true;
       }
     };
 
     ws.onmessage = (event) => {
       let msg;
-      try {
-        msg = JSON.parse(event.data);
-      } catch {
-        return;
-      }
+      try { msg = JSON.parse(event.data); } catch { return; }
 
       if (msg.type === "scrollback" && msg.data) {
         const bytes = decodeBase64(msg.data);
-        const decoded = new TextDecoder().decode(bytes);
-        term.write(decoded);
-
+        term.write(new TextDecoder().decode(bytes));
         if (initialStateRef.current === "dead") {
           term.write("\r\n\x1b[1;31m--- Session ended ---\x1b[0m\r\n");
         }
       }
-
       if (msg.type === "terminal_output" && msg.data) {
-        // Raw PTY output — write as binary Uint8Array to preserve all bytes
-        const bytes = decodeBase64(msg.data);
-        term.write(bytes);
+        term.write(decodeBase64(msg.data));
       }
-
       if (msg.type === "error" && msg.message) {
         term.write(`\r\n\x1b[1;31mError: ${msg.message}\x1b[0m\r\n`);
       }
     };
 
-    ws.onclose = () => {
-      setConnected(false);
-      attachedRef.current = false;
-    };
-
-    ws.onerror = () => {
-      setConnected(false);
-    };
+    ws.onclose = () => { setConnected(false); attachedRef.current = false; };
+    ws.onerror = () => { setConnected(false); };
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      // Send detach before closing
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "terminal_detach" }));
         ws.close();
@@ -233,67 +177,28 @@ export function TerminalView({
       wsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverId, sessionId]); // Only re-run if server/session changes
+  }, [serverId, sessionId]);
 
   const shortName = sessionName.replace(/^cc-\d+-/, "");
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: "#0d1117" }}>
+    <div className="h-screen flex flex-col bg-[#0d1117]">
       {/* Header */}
-      <div
-        className="flex items-center gap-3 px-4 py-2"
-        style={{
-          background: "#171717",
-          borderBottom: "1px solid #262626",
-        }}
-      >
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1"
-          style={{
-            fontSize: 13,
-            color: "#737373",
-            transition: "color 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "#e5e5e5";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "#737373";
-          }}
-        >
+      <div className="flex items-center gap-3 px-4 py-2 bg-surface-0 border-b border-surface-1">
+        <button onClick={onBack} className="btn-ghost flex items-center gap-1 text-[13px]">
           <ArrowLeft size={14} /> Overview
         </button>
-        <span style={{ color: "#404040" }}>|</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e5e5" }}>
-          {shortName}
-        </span>
-        <span style={{ fontSize: 11, color: "#525252" }}>@ {serverName}</span>
+        <span className="text-border">|</span>
+        <span className="text-[13px] font-semibold text-text-secondary">{shortName}</span>
+        <span className="text-[11px] text-text-faint">@ {serverName}</span>
         <div className="flex items-center gap-2 ml-auto">
           <StatusIndicator state={sessionState} size={8} />
           <StateLabel state={sessionState} />
           {!connected && (
-            <span style={{ fontSize: 11, color: "#ef4444", marginLeft: 8 }}>
-              disconnected
-            </span>
+            <span className="text-[11px] text-warn ml-2">disconnected</span>
           )}
         </div>
-        <button
-          onClick={onBack}
-          style={{
-            padding: 4,
-            borderRadius: 6,
-            color: "#737373",
-            transition: "color 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "#e5e5e5";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "#737373";
-          }}
-          title="Close"
-        >
+        <button onClick={onBack} className="btn-ghost p-1" title="Close">
           <X size={14} />
         </button>
       </div>

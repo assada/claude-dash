@@ -37,49 +37,23 @@ export function SessionCard({
   return (
     <motion.div
       layout
-      initial={{
-        opacity: 0,
-        scale: 0.95,
-        y: 10,
-      }}
-      animate={{
-        opacity: 1,
-        scale: 1,
-        y: 0,
-      }}
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.6, y: 50 }}
       transition={{
         opacity: { duration: 0.15 },
         scale: { type: "spring", stiffness: 400, damping: 25 },
         y: { type: "spring", stiffness: 400, damping: 25 },
       }}
-      whileHover={{
-        scale: 1.018,
-        boxShadow: "0 32px 40px -8px rgba(0, 0, 0, 0.55)",
-      }}
+      whileHover={{ scale: 1.018 }}
       onDoubleClick={onDoubleClick}
-      className="relative group cursor-pointer select-none"
-      style={{
-        borderRadius: 12,
-        border: isNeedsAttention
-          ? `1px solid ${stateColor}`
-          : "1px solid #404040",
-        padding: 16,
-        background: isNeedsAttention
-          ? "linear-gradient(135deg, #2a1a1a 0%, #262626 100%)"
-          : "linear-gradient(135deg, #3a3a3a 0%, #262626 100%)",
-        boxShadow: "0 24px 24px -12px rgba(0, 0, 0, 0.25)",
-        opacity: isDead ? 0.5 : 1,
-        transition:
-          "transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
-      }}
+      className={`panel relative group cursor-pointer select-none p-4 ${isDead ? "opacity-50" : ""} ${isNeedsAttention ? "!border-warn !bg-[linear-gradient(135deg,#2a1a1a_0%,#262626_100%)]" : ""}`}
     >
       {/* Pulsing glow for needs_attention */}
       {isNeedsAttention && (
         <motion.div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 rounded-xl pointer-events-none"
           style={{
-            borderRadius: 12,
             boxShadow: `0 0 20px ${stateColor}40, inset 0 0 20px ${stateColor}10`,
           }}
           animate={{
@@ -96,13 +70,10 @@ export function SessionCard({
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
         <StatusIndicator state={session.state} />
-        <span
-          className="truncate"
-          style={{ fontSize: 13, fontWeight: 600, color: "#fafafa" }}
-        >
+        <span className="text-[13px] font-semibold text-text-primary truncate">
           {shortName(session.name)}
         </span>
-        <span className="ml-auto" style={{ fontSize: 11, color: "#737373" }}>
+        <span className="ml-auto text-[11px] text-text-muted">
           {timeSince(session.state_changed_at)}
         </span>
       </div>
@@ -113,10 +84,7 @@ export function SessionCard({
       </div>
 
       {/* Workdir */}
-      <div
-        className="flex items-center gap-1 mb-2"
-        style={{ fontSize: 11, color: "#737373" }}
-      >
+      <div className="flex items-center gap-1 mb-2 text-[11px] text-text-muted">
         <FolderOpen size={11} />
         <span className="truncate">{session.workdir || "~"}</span>
       </div>
@@ -124,10 +92,8 @@ export function SessionCard({
       {/* Last line preview */}
       {session.last_line && (
         <div
-          className="truncate"
+          className="text-[11px] text-text-faint truncate"
           style={{
-            fontSize: 11,
-            color: "#525252",
             fontFamily:
               "'JetBrains Mono NF', 'JetBrains Mono', Menlo, monospace",
           }}
@@ -137,26 +103,16 @@ export function SessionCard({
       )}
 
       {/* Actions (visible on hover) */}
-      <div
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1"
-        style={{ transition: "opacity 0.2s ease-out" }}
-      >
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDoubleClick();
           }}
-          className="btn-skin"
-          style={{
-            padding: 5,
-            borderRadius: 6,
-            border: "1px solid #404040",
-            color: "#737373",
-            transition: "color 0.2s ease",
-          }}
+          className="btn-skin !rounded-md p-1.5"
           title="Open terminal"
         >
-          <Terminal size={13} />
+          <Terminal size={13} className="text-text-muted" />
         </button>
         {!isDead && (
           <button
@@ -166,24 +122,7 @@ export function SessionCard({
                 onKill();
               }
             }}
-            style={{
-              padding: 5,
-              borderRadius: 6,
-              border: "1px solid #404040",
-              background: "#262626",
-              color: "#737373",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#3a1a1a";
-              e.currentTarget.style.borderColor = "#ef4444";
-              e.currentTarget.style.color = "#ef4444";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#262626";
-              e.currentTarget.style.borderColor = "#404040";
-              e.currentTarget.style.color = "#737373";
-            }}
+            className="btn-danger p-1.5"
             title="Kill session"
           >
             <Trash2 size={13} />

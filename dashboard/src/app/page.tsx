@@ -54,7 +54,6 @@ export default function Home() {
     [servers, archivedSessions]
   );
 
-  // Count attention-needing sessions
   let attentionCount = 0;
   for (const server of servers) {
     for (const session of server.sessions) {
@@ -62,7 +61,6 @@ export default function Home() {
     }
   }
 
-  // Terminal full-screen view
   if (terminalTarget) {
     const server = servers.find((s) => s.id === terminalTarget.serverId);
     const session = server?.sessions.find(
@@ -83,53 +81,21 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen dot-grid" style={{ background: "#171717" }}>
-      {/* Noise overlay */}
+    <div className="min-h-screen bg-surface-0 dot-grid">
       <div className="noise-overlay" />
 
       {/* Top bar */}
-      <header
-        className="sticky top-0 z-40 backdrop-blur"
-        style={{
-          background: "rgba(23, 23, 23, 0.85)",
-          borderBottom: "1px solid #262626",
-        }}
-      >
+      <header className="sticky top-0 z-40 backdrop-blur bg-surface-0/85 border-b border-surface-1">
         <div className="flex items-center gap-3 px-6 py-3">
-          <div
-            className="btn-skin flex items-center justify-center"
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              border: "1px solid #404040",
-            }}
-          >
-            <Terminal size={18} style={{ color: "#e5e5e5" }} />
+          <div className="icon-box w-9 h-9">
+            <Terminal size={18} className="text-text-secondary" />
           </div>
-          <h1
-            style={{
-              fontSize: 17,
-              fontWeight: 600,
-              color: "#e5e5e5",
-              letterSpacing: "-0.01em",
-            }}
-          >
+          <h1 className="text-[17px] font-semibold text-text-secondary tracking-tight">
             Claude Dashboard
           </h1>
 
           {attentionCount > 0 && (
-            <span
-              className="animate-shimmer"
-              style={{
-                padding: "2px 8px",
-                borderRadius: 6,
-                background: "#ef4444",
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 600,
-              }}
-            >
+            <span className="animate-shimmer px-2 py-0.5 rounded-md bg-warn text-white text-[11px] font-semibold">
               {attentionCount}
             </span>
           )}
@@ -140,31 +106,11 @@ export default function Home() {
                 setDefaultNewServerId(undefined);
                 setShowNewSession(true);
               }}
-              className="btn-skin flex items-center gap-1.5"
-              style={{
-                padding: "6px 14px",
-                borderRadius: 8,
-                border: "1px solid #404040",
-                color: "#e5e5e5",
-                fontSize: 13,
-                fontWeight: 500,
-                transition: "all 0.2s ease",
-              }}
+              className="btn-skin flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-medium"
             >
               <Plus size={14} /> New Session
             </button>
-            <a
-              href="/settings"
-              className="btn-skin flex items-center justify-center"
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                border: "1px solid #404040",
-                color: "#737373",
-                transition: "color 0.2s ease",
-              }}
-            >
+            <a href="/settings" className="btn-ghost p-2">
               <Settings size={16} />
             </a>
           </div>
@@ -174,17 +120,12 @@ export default function Home() {
       {/* Main content */}
       <main className="px-6 py-6 max-w-7xl mx-auto relative z-10">
         {servers.length === 0 ? (
-          <div className="text-center py-20" style={{ color: "#525252" }}>
+          <div className="text-center py-20 text-text-faint">
             <Terminal size={48} className="mx-auto mb-4 opacity-30" />
-            <p style={{ fontSize: 17, fontWeight: 500, marginBottom: 8 }}>
-              No servers configured
-            </p>
-            <p style={{ fontSize: 13, color: "#737373" }}>
+            <p className="text-[17px] font-medium mb-2">No servers configured</p>
+            <p className="text-[13px] text-text-muted">
               Go to{" "}
-              <a
-                href="/settings"
-                style={{ color: "#58a6ff", textDecoration: "none" }}
-              >
+              <a href="/settings" className="text-accent hover:underline">
                 Settings
               </a>{" "}
               to add agent servers
@@ -210,13 +151,8 @@ export default function Home() {
         )}
       </main>
 
-      {/* Archive stack button */}
-      <ArchiveStack
-        count={archiveCount}
-        onClick={() => setArchiveOpen(true)}
-      />
+      <ArchiveStack count={archiveCount} onClick={() => setArchiveOpen(true)} />
 
-      {/* Archive drawer */}
       <ArchiveDrawer
         open={archiveOpen}
         sessions={archivedSessions}
@@ -225,7 +161,6 @@ export default function Home() {
         onOpenTerminal={handleOpenTerminal}
       />
 
-      {/* New session modal */}
       {showNewSession && (
         <NewSessionModal
           servers={servers}
