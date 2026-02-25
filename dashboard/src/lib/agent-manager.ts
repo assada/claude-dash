@@ -239,12 +239,32 @@ class AgentManager {
     }
 
     // Add/update servers
+    let changed = false;
     for (const server of config.servers) {
-      if (!this.connections.has(server.id)) {
+      const existing = this.connections.get(server.id);
+      if (!existing) {
         const conn = new AgentConnection(server, () => this.notifyState());
         this.connections.set(server.id, conn);
         conn.connect();
+        changed = true;
+      } else if (
+        existing.config.host !== server.host ||
+        existing.config.port !== server.port ||
+        existing.config.token !== server.token ||
+        existing.config.name !== server.name
+      ) {
+        // Server config changed — reconnect
+        existing.disconnect();
+        const conn = new AgentConnection(server, () => this.notifyState());
+        this.connections.set(server.id, conn);
+        conn.connect();
+        changed = true;
       }
+    }
+
+    // Notify immediately so browsers see new servers (even if still connecting)
+    if (changed) {
+      this.notifyState();
     }
   }
 

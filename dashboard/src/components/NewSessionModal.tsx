@@ -16,7 +16,7 @@ export function NewSessionModal({
   onSubmit: (serverId: string, workdir: string, name: string) => void;
 }) {
   const [serverId, setServerId] = useState(
-    defaultServerId || servers[0]?.id || ""
+    defaultServerId || servers.find((s) => s.online)?.id || servers[0]?.id || ""
   );
   const [workdir, setWorkdir] = useState("");
   const [name, setName] = useState("");
@@ -46,11 +46,9 @@ export function NewSessionModal({
               onChange={(e) => setServerId(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
             >
-              {servers
-                .filter((s) => s.online)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+              {servers.map((s) => (
+                  <option key={s.id} value={s.id} disabled={!s.online}>
+                    {s.name}{!s.online ? " (offline)" : ""}
                   </option>
                 ))}
             </select>
