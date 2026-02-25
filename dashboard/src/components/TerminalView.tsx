@@ -59,7 +59,7 @@ export function TerminalView({
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 14,
-      fontFamily: "JetBrains Mono, Menlo, Consolas, monospace",
+      fontFamily: "JetBrains Mono NF, JetBrains Mono, Menlo, Consolas, monospace",
       theme: {
         background: "#0d1117",
         foreground: "#e6edf3",
