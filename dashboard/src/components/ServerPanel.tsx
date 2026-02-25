@@ -434,7 +434,6 @@ export function ServerPanel({
       panel.style.boxShadow = DRAG_SHADOW;
       panel.style.transform = `scale(${DRAG_SCALE})`;
       panel.style.cursor = "grabbing";
-      panel.style.zIndex = "999999";
 
       const onMove = (me: PointerEvent) => {
         const nx = me.clientX - grabOffsetX;
@@ -474,7 +473,6 @@ export function ServerPanel({
         panel.style.boxShadow = IDLE_SHADOW;
         panel.style.transform = "";
         panel.style.cursor = "";
-        panel.style.zIndex = "";
 
         // Start momentum
         const vel = calculateVelocity();
@@ -502,7 +500,7 @@ export function ServerPanel({
         width: PANEL_WIDTH,
         left: position.x,
         top: position.y,
-        zIndex,
+        zIndex: isDragging ? 999999 : zIndex,
         boxShadow: IDLE_SHADOW,
         touchAction: "none",
         userSelect: "none",
