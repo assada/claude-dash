@@ -153,6 +153,17 @@ else
     cd - > /dev/null
 fi
 
+# ── Stop existing service before replacing binary ─────────────────
+
+if [ "$OS" = "linux" ] && systemctl is-active --quiet ccdash-agent 2>/dev/null; then
+    info "Stopping running agent..."
+    sudo systemctl stop ccdash-agent
+fi
+if [ "$OS" = "darwin" ] && launchctl list 2>/dev/null | grep -q com.claude-dashboard.agent; then
+    info "Stopping running agent..."
+    launchctl bootout "gui/$(id -u)/com.claude-dashboard.agent" 2>/dev/null || true
+fi
+
 # ── Install ──────────────────────────────────────────────────────
 
 info "Installing to ${INSTALL_DIR}/ccdash-agent..."
@@ -214,15 +225,6 @@ fi
 # ── Autostart ────────────────────────────────────────────────────
 
 echo ""
-
-# Stop existing service
-if [ "$OS" = "linux" ] && systemctl is-active --quiet ccdash-agent 2>/dev/null; then
-    info "Stopping existing service..."
-    sudo systemctl stop ccdash-agent
-fi
-if [ "$OS" = "darwin" ]; then
-    launchctl bootout "gui/$(id -u)/com.claude-dashboard.agent" 2>/dev/null || true
-fi
 
 if [ "$OS" = "linux" ] && command -v systemctl &> /dev/null; then
     info "Setting up systemd service..."
