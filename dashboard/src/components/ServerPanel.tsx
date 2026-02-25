@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   GripVertical,
   ChevronUp,
@@ -18,14 +18,20 @@ import type { ServerStatus, SessionInfo, SessionState } from "@/lib/types";
 import type { PanelPosition } from "@/hooks/usePanelPositions";
 import type { PanelRect } from "./DotGridCanvas";
 
+// Physics constants — matching robot-components exactly
 const PANEL_WIDTH = 320;
-const FRICTION = 0.975;
-const FRICTION_FAST = 0.94;
-const BOUNCE_DAMPING = 0.45;
+const BOUNDARY_MARGIN = 8;
 const MAX_VELOCITY = 40;
-const MIN_VELOCITY = 0.5;
-const VELOCITY_WINDOW_MS = 80;
-const EDGE_MARGIN = 8;
+const BASE_FRICTION = 0.975;
+const HIGH_SPEED_FRICTION = 0.94;
+const BOUNCE_DAMPING = 0.45;
+const BOUNCE_FRICTION_BOOST = 0.85;
+const MIN_VELOCITY = 0.15;
+const MOMENTUM_THRESHOLD = 1.5;
+const VELOCITY_SAMPLE_COUNT = 6;
+const DRAG_SCALE = 1.018;
+const IDLE_SHADOW = "0 24px 24px -12px rgba(0,0,0,0.25)";
+const DRAG_SHADOW = "0 32px 40px -8px rgba(0,0,0,0.55)";
 
 function timeSince(ts: number): string {
   const seconds = Math.floor((Date.now() - ts) / 1000);
@@ -136,6 +142,25 @@ function SessionRow({
   );
 }
 
+function getViewportBounds(panelWidth: number, panelHeight: number) {
+  return {
+    minX: BOUNDARY_MARGIN,
+    maxX: window.innerWidth - panelWidth - BOUNDARY_MARGIN,
+    minY: BOUNDARY_MARGIN,
+    maxY: Math.max(
+      window.innerHeight + window.scrollY - panelHeight - BOUNDARY_MARGIN,
+      BOUNDARY_MARGIN + 100
+    ),
+  };
+}
+
+function clampVelocity(vx: number, vy: number) {
+  return {
+    vx: Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, vx)),
+    vy: Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, vy)),
+  };
+}
+
 export function ServerPanel({
   server,
   position,
@@ -158,22 +183,17 @@ export function ServerPanel({
   zIndex: number;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const [dragging, setDragging] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
 
-  // Motion values for smooth positioning
-  const mx = useMotionValue(position.x);
-  const my = useMotionValue(position.y);
-
-  // Physics refs
-  const dragOffset = useRef({ x: 0, y: 0 });
+  // Physics refs — never trigger re-renders
   const posRef = useRef({ x: position.x, y: position.y });
-  const velocityRef = useRef({ x: 0, y: 0 });
-  const samplesRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
-  const rafRef = useRef(0);
-  const physicsRunning = useRef(false);
+  const velocitySamplesRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
+  const animFrameRef = useRef<number | null>(null);
+  const isAnimatingRef = useRef(false);
+  const justBouncedRef = useRef({ x: false, y: false });
 
   const attentionCount = server.sessions.filter(
     (s) => s.state === "needs_attention"
@@ -188,200 +208,295 @@ export function ServerPanel({
     }
   }, [server.sessions.length]);
 
-  // Report rect to dot grid whenever position changes
-  const updateRect = useCallback(() => {
-    const h = panelRef.current?.offsetHeight || 200;
-    reportRect({
-      x: posRef.current.x,
-      y: posRef.current.y,
-      w: PANEL_WIDTH,
-      h,
-    });
-  }, [reportRect]);
-
-  // Sync motion values when position prop changes (from Arrange)
+  // Sync DOM with position (for Arrange or initial load)
   useEffect(() => {
-    if (!dragging && !physicsRunning.current) {
-      animate(mx, position.x, { type: "spring", stiffness: 400, damping: 28 });
-      animate(my, position.y, { type: "spring", stiffness: 400, damping: 28 });
-      posRef.current = { x: position.x, y: position.y };
-      updateRect();
+    if (!isDragging && !isAnimatingRef.current) {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      // Spring animate to new position
+      const startX = posRef.current.x;
+      const startY = posRef.current.y;
+      const targetX = position.x;
+      const targetY = position.y;
+
+      if (Math.abs(startX - targetX) < 1 && Math.abs(startY - targetY) < 1) {
+        panel.style.left = targetX + "px";
+        panel.style.top = targetY + "px";
+        posRef.current = { x: targetX, y: targetY };
+        reportRect({ x: targetX, y: targetY, w: PANEL_WIDTH, h: panel.offsetHeight });
+        return;
+      }
+
+      // Simple spring animation for Arrange
+      let vx = 0;
+      let vy = 0;
+      let cx = startX;
+      let cy = startY;
+      const stiffness = 0.08;
+      const damp = 0.72;
+
+      const step = () => {
+        const fx = (targetX - cx) * stiffness;
+        const fy = (targetY - cy) * stiffness;
+        vx = (vx + fx) * damp;
+        vy = (vy + fy) * damp;
+        cx += vx;
+        cy += vy;
+
+        panel.style.left = cx + "px";
+        panel.style.top = cy + "px";
+        posRef.current = { x: cx, y: cy };
+        reportRect({ x: cx, y: cy, w: PANEL_WIDTH, h: panel.offsetHeight });
+
+        if (
+          Math.abs(vx) > 0.1 ||
+          Math.abs(vy) > 0.1 ||
+          Math.abs(targetX - cx) > 0.5 ||
+          Math.abs(targetY - cy) > 0.5
+        ) {
+          animFrameRef.current = requestAnimationFrame(step);
+        } else {
+          panel.style.left = targetX + "px";
+          panel.style.top = targetY + "px";
+          posRef.current = { x: targetX, y: targetY };
+          reportRect({ x: targetX, y: targetY, w: PANEL_WIDTH, h: panel.offsetHeight });
+          animFrameRef.current = null;
+        }
+      };
+
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = requestAnimationFrame(step);
     }
   }, [position.x, position.y]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Set position directly (during drag / physics)
-  const setPos = useCallback(
-    (x: number, y: number) => {
-      posRef.current = { x, y };
-      mx.set(x);
-      my.set(y);
-      updateRect();
-    },
-    [mx, my, updateRect]
-  );
-
-  // --- Physics: momentum + edge bouncing ---
-  const startPhysics = useCallback(() => {
-    // Calculate velocity from recent samples
-    const samples = samplesRef.current;
-    const cutoff = Date.now() - VELOCITY_WINDOW_MS;
-    const recent = samples.filter((s) => s.t > cutoff);
-
-    if (recent.length >= 2) {
-      const first = recent[0];
-      const last = recent[recent.length - 1];
-      const dt = (last.t - first.t) / 1000;
-      if (dt > 0) {
-        velocityRef.current = {
-          x: Math.max(
-            -MAX_VELOCITY,
-            Math.min(MAX_VELOCITY, (last.x - first.x) / dt / 60)
-          ),
-          y: Math.max(
-            -MAX_VELOCITY,
-            Math.min(MAX_VELOCITY, (last.y - first.y) / dt / 60)
-          ),
-        };
-      }
-    }
-
-    const speed = Math.sqrt(
-      velocityRef.current.x ** 2 + velocityRef.current.y ** 2
-    );
-    if (speed < MIN_VELOCITY) {
-      onPositionChange(posRef.current);
-      return;
-    }
-
-    physicsRunning.current = true;
-
-    const step = () => {
-      const vel = velocityRef.current;
-      const pos = posRef.current;
-
-      // Apply velocity
-      pos.x += vel.x;
-      pos.y += vel.y;
-
-      // Friction
-      const spd = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
-      const friction = spd > 10 ? FRICTION_FAST : FRICTION;
-      vel.x *= friction;
-      vel.y *= friction;
-
-      // Edge bouncing
-      const maxX = window.innerWidth - PANEL_WIDTH - EDGE_MARGIN;
-      const maxY = Math.max(
-        window.innerHeight + window.scrollY - 48,
-        window.scrollY + 100
-      );
-
-      if (pos.x < EDGE_MARGIN) {
-        pos.x = EDGE_MARGIN;
-        vel.x = -vel.x * BOUNCE_DAMPING;
-      }
-      if (pos.x > maxX) {
-        pos.x = maxX;
-        vel.x = -vel.x * BOUNCE_DAMPING;
-      }
-      if (pos.y < EDGE_MARGIN) {
-        pos.y = EDGE_MARGIN;
-        vel.y = -vel.y * BOUNCE_DAMPING;
-      }
-      if (pos.y > maxY) {
-        pos.y = maxY;
-        vel.y = -vel.y * BOUNCE_DAMPING;
-      }
-
-      setPos(pos.x, pos.y);
-
-      if (Math.abs(vel.x) > MIN_VELOCITY || Math.abs(vel.y) > MIN_VELOCITY) {
-        rafRef.current = requestAnimationFrame(step);
-      } else {
-        physicsRunning.current = false;
-        onPositionChange(posRef.current);
-      }
-    };
-
-    rafRef.current = requestAnimationFrame(step);
-  }, [setPos, onPositionChange]);
-
-  // Cleanup physics on unmount
+  // Cleanup
   useEffect(() => {
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
   }, []);
+
+  // --- Velocity calculation ---
+  const calculateVelocity = useCallback(() => {
+    const samples = velocitySamplesRef.current;
+    if (samples.length < 2) return { x: 0, y: 0 };
+
+    const now = performance.now();
+    const maxAge = 80;
+    const last = samples[samples.length - 1];
+    if (now - last.t > maxAge) return { x: 0, y: 0 };
+
+    let totalWeight = 0;
+    let wvx = 0;
+    let wvy = 0;
+
+    for (let i = 1; i < samples.length; i++) {
+      const prev = samples[i - 1];
+      const curr = samples[i];
+      const dt = curr.t - prev.t;
+      const age = now - curr.t;
+
+      if (age <= maxAge && dt >= 8 && dt < 100) {
+        const weight = i / samples.length;
+        wvx += ((curr.x - prev.x) / dt) * 16.67 * weight;
+        wvy += ((curr.y - prev.y) / dt) * 16.67 * weight;
+        totalWeight += weight;
+      }
+    }
+
+    if (totalWeight === 0) return { x: 0, y: 0 };
+    return { x: wvx / totalWeight, y: wvy / totalWeight };
+  }, []);
+
+  // --- Momentum animation ---
+  const startMomentum = useCallback(
+    (startX: number, startY: number, velX: number, velY: number) => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const clamped = clampVelocity(velX, velY);
+      let x = startX;
+      let y = startY;
+      let vx = clamped.vx;
+      let vy = clamped.vy;
+
+      isAnimatingRef.current = true;
+      justBouncedRef.current = { x: false, y: false };
+
+      const step = () => {
+        const panelHeight = panel.offsetHeight;
+        const bounds = getViewportBounds(PANEL_WIDTH, panelHeight);
+
+        // Speed-dependent friction
+        const speed = Math.sqrt(vx * vx + vy * vy);
+        const speedRatio = Math.min(speed / MAX_VELOCITY, 1);
+        const friction =
+          BASE_FRICTION - speedRatio * (BASE_FRICTION - HIGH_SPEED_FRICTION);
+
+        const bmx = justBouncedRef.current.x ? BOUNCE_FRICTION_BOOST : 1;
+        const bmy = justBouncedRef.current.y ? BOUNCE_FRICTION_BOOST : 1;
+        vx *= friction * bmx;
+        vy *= friction * bmy;
+        justBouncedRef.current = { x: false, y: false };
+
+        x += vx;
+        y += vy;
+
+        // Edge bouncing
+        if (x < bounds.minX) {
+          x = bounds.minX;
+          vx = Math.abs(vx) * BOUNCE_DAMPING;
+          justBouncedRef.current.x = true;
+        } else if (x > bounds.maxX) {
+          x = bounds.maxX;
+          vx = -Math.abs(vx) * BOUNCE_DAMPING;
+          justBouncedRef.current.x = true;
+        }
+        if (y < bounds.minY) {
+          y = bounds.minY;
+          vy = Math.abs(vy) * BOUNCE_DAMPING;
+          justBouncedRef.current.y = true;
+        } else if (y > bounds.maxY) {
+          y = bounds.maxY;
+          vy = -Math.abs(vy) * BOUNCE_DAMPING;
+          justBouncedRef.current.y = true;
+        }
+
+        // Direct DOM write — zero latency
+        panel.style.left = x + "px";
+        panel.style.top = y + "px";
+        posRef.current = { x, y };
+        reportRect({ x, y, w: PANEL_WIDTH, h: panelHeight });
+
+        if (Math.sqrt(vx * vx + vy * vy) > MIN_VELOCITY) {
+          animFrameRef.current = requestAnimationFrame(step);
+        } else {
+          isAnimatingRef.current = false;
+          animFrameRef.current = null;
+          onPositionChange({ x, y });
+        }
+      };
+
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = requestAnimationFrame(step);
+    },
+    [onPositionChange, reportRect]
+  );
 
   // --- Drag handlers ---
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
       e.preventDefault();
-      cancelAnimationFrame(rafRef.current);
-      physicsRunning.current = false;
 
-      setDragging(true);
+      // Cancel any running animation
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      isAnimatingRef.current = false;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+
       onBringToFront();
-      dragOffset.current = {
-        x: e.clientX - posRef.current.x,
-        y: e.clientY - posRef.current.y,
+      setIsDragging(true);
+
+      const grabOffsetX = e.clientX - posRef.current.x;
+      const grabOffsetY = e.clientY - posRef.current.y;
+      let hasMoved = false;
+
+      velocitySamplesRef.current = [];
+
+      // Apply drag style
+      panel.style.boxShadow = DRAG_SHADOW;
+      panel.style.transform = `scale(${DRAG_SCALE})`;
+      panel.style.cursor = "grabbing";
+      panel.style.zIndex = "999999";
+
+      const onMove = (me: PointerEvent) => {
+        const nx = me.clientX - grabOffsetX;
+        const ny = me.clientY - grabOffsetY;
+
+        if (!hasMoved && (Math.abs(nx - posRef.current.x) > 2 || Math.abs(ny - posRef.current.y) > 2)) {
+          hasMoved = true;
+        }
+
+        if (hasMoved) {
+          // Clamp to viewport bounds during drag
+          const panelHeight = panel.offsetHeight;
+          const bounds = getViewportBounds(PANEL_WIDTH, panelHeight);
+          const fx = Math.max(bounds.minX, Math.min(bounds.maxX, nx));
+          const fy = Math.max(bounds.minY, Math.min(bounds.maxY, ny));
+
+          // Direct DOM write — instant, zero latency
+          panel.style.left = fx + "px";
+          panel.style.top = fy + "px";
+          posRef.current = { x: fx, y: fy };
+          reportRect({ x: fx, y: fy, w: PANEL_WIDTH, h: panelHeight });
+
+          // Sample for velocity
+          const now = performance.now();
+          velocitySamplesRef.current.push({ x: fx, y: fy, t: now });
+          if (velocitySamplesRef.current.length > VELOCITY_SAMPLE_COUNT) {
+            velocitySamplesRef.current.shift();
+          }
+        }
       };
-      samplesRef.current = [];
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+
+        setIsDragging(false);
+        panel.style.boxShadow = IDLE_SHADOW;
+        panel.style.transform = "";
+        panel.style.cursor = "";
+        panel.style.zIndex = "";
+
+        // Start momentum
+        const vel = calculateVelocity();
+        const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
+
+        if (speed > MOMENTUM_THRESHOLD) {
+          startMomentum(posRef.current.x, posRef.current.y, vel.x, vel.y);
+        } else {
+          onPositionChange(posRef.current);
+        }
+      };
+
+      // Attach to window for reliable tracking outside panel
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
     },
-    [onBringToFront]
+    [onBringToFront, calculateVelocity, startMomentum, onPositionChange, reportRect]
   );
-
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!dragging) return;
-      const nx = e.clientX - dragOffset.current.x;
-      const ny = e.clientY - dragOffset.current.y;
-      setPos(nx, ny);
-
-      // Sample for velocity
-      const now = Date.now();
-      samplesRef.current.push({ x: nx, y: ny, t: now });
-      const cutoff = now - VELOCITY_WINDOW_MS * 2;
-      samplesRef.current = samplesRef.current.filter((s) => s.t > cutoff);
-    },
-    [dragging, setPos]
-  );
-
-  const onPointerUp = useCallback(() => {
-    if (!dragging) return;
-    setDragging(false);
-    startPhysics();
-  }, [dragging, startPhysics]);
 
   return (
-    <motion.div
+    <div
       ref={panelRef}
+      className="panel overflow-hidden absolute"
       style={{
-        x: mx,
-        y: my,
-        position: "absolute",
         width: PANEL_WIDTH,
-        zIndex: dragging ? 999999 : zIndex,
-        left: 0,
-        top: 0,
+        left: position.x,
+        top: position.y,
+        zIndex,
+        boxShadow: IDLE_SHADOW,
+        touchAction: "none",
+        userSelect: "none",
       }}
-      className={`panel overflow-hidden ${dragging ? "shadow-[var(--shadow-lifted)]" : ""}`}
       onPointerDown={() => onBringToFront()}
     >
       {/* Header — drag handle */}
       <div
-        className={`flex items-center gap-2 px-4 h-12 select-none transition-colors hover:bg-[rgba(64,64,64,0.3)] ${
-          dragging ? "cursor-grabbing" : "cursor-grab"
-        }`}
+        className="flex items-center gap-2 px-4 h-12 select-none transition-colors hover:bg-[rgba(64,64,64,0.3)] cursor-grab"
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
       >
         <GripVertical
           size={14}
           className="text-text-faint shrink-0 pointer-events-none"
         />
-
         <span className="text-[13px] font-medium text-text-secondary truncate flex-1 pointer-events-none">
           {server.name}
         </span>
@@ -466,6 +581,6 @@ export function ServerPanel({
           )}
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }

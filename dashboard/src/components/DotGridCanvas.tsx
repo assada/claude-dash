@@ -9,13 +9,43 @@ export interface PanelRect {
   h: number;
 }
 
-const SPACING = 40;
-const PUSH_RADIUS = 300;
-const PUSH_STRENGTH = 20;
-const GLOW_RADIUS = 150;
-const BASE_BRIGHTNESS = 0.07;
-const BASE_SIZE = 1;
-const LERP_SPEED = 0.08; // spring-like smooth following
+// Constants matching robot-components exactly
+const GRID_SIZE = 40;
+const MAX_DIST = 400;
+const PUSH_STRENGTH = 25;
+const SPRING_STIFFNESS = 0.08;
+const DAMPING = 0.75;
+const BRIGHTNESS_RADIUS = 110;
+const BASE_OPACITY = 0.12;
+const BRIGHTNESS_BOOST = 0.8;
+
+interface Dot {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  targetSize: number;
+}
+
+/**
+ * Distance from a point to the nearest edge of a rectangle.
+ * Returns the closest point on the rect and the distance.
+ */
+function distToRect(
+  px: number,
+  py: number,
+  left: number,
+  top: number,
+  right: number,
+  bottom: number
+) {
+  const cx = Math.max(left, Math.min(px, right));
+  const cy = Math.max(top, Math.min(py, bottom));
+  const dx = px - cx;
+  const dy = py - cy;
+  return { dx, dy, dist: Math.sqrt(dx * dx + dy * dy) };
+}
 
 export function DotGridCanvas({
   panelRectsRef,
@@ -23,18 +53,33 @@ export function DotGridCanvas({
   panelRectsRef: React.RefObject<Record<string, PanelRect>>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number>(0);
-  // Persistent dot offsets for smooth spring-like displacement
-  const offsetsRef = useRef<Float32Array | null>(null);
-  const gridDimsRef = useRef({ cols: 0, rows: 0 });
+  const rafRef = useRef(0);
+  const dotsRef = useRef<Map<string, Dot>>(new Map());
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     let running = true;
+
+    const initDots = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      dotsRef.current.clear();
+      for (let gx = -GRID_SIZE; gx < w + GRID_SIZE * 2; gx += GRID_SIZE) {
+        for (let gy = -GRID_SIZE; gy < h + GRID_SIZE * 2; gy += GRID_SIZE) {
+          dotsRef.current.set(`${gx},${gy}`, {
+            x: gx,
+            y: gy,
+            vx: 0,
+            vy: 0,
+            size: 1,
+            targetSize: 1,
+          });
+        }
+      }
+    };
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -43,15 +88,7 @@ export function DotGridCanvas({
       canvas.style.width = `${window.innerWidth}px`;
       canvas.style.height = `${window.innerHeight}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      // Rebuild offset arrays
-      const cols = Math.ceil(window.innerWidth / SPACING) + 1;
-      const rows = Math.ceil(window.innerHeight / SPACING) + 1;
-      const count = cols * rows;
-      gridDimsRef.current = { cols, rows };
-
-      // ox, oy per dot
-      offsetsRef.current = new Float32Array(count * 2);
+      initDots();
     };
 
     resize();
@@ -62,82 +99,83 @@ export function DotGridCanvas({
       const w = window.innerWidth;
       const h = window.innerHeight;
       const scrollY = window.scrollY;
-      const { cols, rows } = gridDimsRef.current;
-      const offsets = offsetsRef.current;
-      if (!offsets) {
-        rafRef.current = requestAnimationFrame(draw);
-        return;
-      }
 
       ctx.clearRect(0, 0, w, h);
 
-      // Gather panel rects (viewport-relative)
+      // Gather panels in viewport coords
       const panels: PanelRect[] = [];
       if (panelRectsRef.current) {
         for (const r of Object.values(panelRectsRef.current)) {
-          panels.push({
-            x: r.x,
-            y: r.y - scrollY,
-            w: r.w,
-            h: r.h,
-          });
+          panels.push({ x: r.x, y: r.y - scrollY, w: r.w, h: r.h });
         }
       }
 
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const idx = (row * cols + col) * 2;
-          const gx = col * SPACING + SPACING / 2;
-          const gy = row * SPACING + SPACING / 2;
+      for (const [key, dot] of dotsRef.current) {
+        // Parse base grid position from key
+        const commaIdx = key.indexOf(",");
+        const baseX = parseInt(key.substring(0, commaIdx));
+        const baseY = parseInt(key.substring(commaIdx + 1));
 
-          // Calculate target displacement from panels
-          let targetOx = 0;
-          let targetOy = 0;
-          let brightness = BASE_BRIGHTNESS;
-          let size = BASE_SIZE;
+        // Accumulate push from all panels
+        let totalPushX = 0;
+        let totalPushY = 0;
+        let minDist = Infinity;
 
-          for (const p of panels) {
-            const cx = p.x + p.w / 2;
-            const cy = p.y + p.h / 2;
-            const dx = gx - cx;
-            const dy = gy - cy;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+        for (const p of panels) {
+          const { dx, dy, dist } = distToRect(
+            baseX,
+            baseY,
+            p.x,
+            p.y,
+            p.x + p.w,
+            p.y + p.h
+          );
 
-            // Push force
-            if (dist < PUSH_RADIUS && dist > 1) {
-              const t = 1 - dist / PUSH_RADIUS;
-              const strength = PUSH_STRENGTH * t * t;
-              targetOx += (dx / dist) * strength;
-              targetOy += (dy / dist) * strength;
-            }
+          minDist = Math.min(minDist, dist);
 
-            // Glow: brightness + size
-            if (dist < GLOW_RADIUS) {
-              const t = 1 - dist / GLOW_RADIUS;
-              brightness = Math.max(brightness, BASE_BRIGHTNESS + t * 0.55);
-              size = Math.max(size, BASE_SIZE + t * 1.8);
-            }
+          if (dist > 0 && dist < MAX_DIST) {
+            const normalizedDist = dist / MAX_DIST;
+            const pushAmount =
+              Math.pow(1 - normalizedDist, 2) * PUSH_STRENGTH;
+            totalPushX += (dx / dist) * pushAmount;
+            totalPushY += (dy / dist) * pushAmount;
           }
-
-          // Smooth lerp toward target (spring-like)
-          offsets[idx] += (targetOx - offsets[idx]) * LERP_SPEED;
-          offsets[idx + 1] += (targetOy - offsets[idx + 1]) * LERP_SPEED;
-
-          const drawX = gx + offsets[idx];
-          const drawY = gy + offsets[idx + 1];
-
-          // Skip dots outside visible area (with margin)
-          if (drawX < -10 || drawX > w + 10 || drawY < -10 || drawY > h + 10)
-            continue;
-
-          ctx.beginPath();
-          ctx.arc(drawX, drawY, size, 0, Math.PI * 2);
-
-          // Color: white far away, slightly blue near panels
-          const blue = brightness > 0.15 ? 40 : 0;
-          ctx.fillStyle = `rgba(${200 + blue}, ${200 + blue}, ${220 + blue}, ${brightness})`;
-          ctx.fill();
         }
+
+        // Target position = base + displacement
+        const targetX = baseX + totalPushX;
+        const targetY = baseY + totalPushY;
+
+        // Spring physics: dot springs toward target
+        const forceX = (targetX - dot.x) * SPRING_STIFFNESS;
+        const forceY = (targetY - dot.y) * SPRING_STIFFNESS;
+        dot.vx = (dot.vx + forceX) * DAMPING;
+        dot.vy = (dot.vy + forceY) * DAMPING;
+        dot.x += dot.vx;
+        dot.y += dot.vy;
+
+        // Skip offscreen dots
+        if (dot.x < -20 || dot.x > w + 20 || dot.y < -20 || dot.y > h + 20)
+          continue;
+
+        // Size: sine curve on normalized distance
+        const normalizedDist = Math.min(minDist / MAX_DIST, 1);
+        const ripple = Math.sin(normalizedDist * Math.PI);
+        dot.targetSize = 0.8 + ripple * 2;
+        dot.size += (dot.targetSize - dot.size) * 0.15;
+
+        // Brightness: tight 110px radius, quadratic falloff
+        const brightDist = Math.min(minDist / BRIGHTNESS_RADIUS, 1);
+        const brightFalloff = brightDist * brightDist;
+        const opacity = BASE_OPACITY + (1 - brightFalloff) * BRIGHTNESS_BOOST;
+
+        // Color: 130 (far) to 255 (near)
+        const colorVal = Math.round(130 + (1 - brightFalloff) * 125);
+
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, Math.max(0.5, dot.size), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${colorVal},${colorVal},${colorVal},${Math.max(0, opacity)})`;
+        ctx.fill();
       }
 
       rafRef.current = requestAnimationFrame(draw);
