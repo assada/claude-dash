@@ -208,6 +208,22 @@ export function ServerPanel({
     }
   }, [server.sessions.length]);
 
+  // ResizeObserver: keep dot grid in sync with actual panel height
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const ro = new ResizeObserver(() => {
+      reportRect({
+        x: posRef.current.x,
+        y: posRef.current.y,
+        w: PANEL_WIDTH,
+        h: panel.offsetHeight,
+      });
+    });
+    ro.observe(panel);
+    return () => ro.disconnect();
+  }, [reportRect]);
+
   // Sync DOM with position (for Arrange or initial load)
   useEffect(() => {
     if (!isDragging && !isAnimatingRef.current) {
