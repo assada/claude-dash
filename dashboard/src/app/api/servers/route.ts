@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { agentManager } from "@/lib/agent-manager";
@@ -43,18 +44,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { id, name, host, port, token } = body;
 
-  if (!id || !name || !host) {
+  if (!name || !host) {
     return NextResponse.json(
-      { error: "id, name, and host are required" },
+      { error: "name and host are required" },
       { status: 400 }
     );
   }
 
+  const serverId = id || randomBytes(6).toString("hex");
+
   const server = await prisma.server.upsert({
-    where: { userId_serverId: { userId, serverId: id } },
+    where: { userId_serverId: { userId, serverId } },
     create: {
       userId,
-      serverId: id,
+      serverId,
       name,
       host,
       port: port || 9100,

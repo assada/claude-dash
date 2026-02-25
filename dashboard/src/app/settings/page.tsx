@@ -188,32 +188,17 @@ export default function SettingsPage() {
               {isNew ? "Add Server" : "Edit Server"}
             </span>
             <div className="flex flex-col gap-4" data-1p-ignore data-lpignore="true">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">ID</label>
-                  <input
-                    type="text"
-                    value={editingServer.id}
-                    onChange={(e) => setEditingServer({ ...editingServer, id: e.target.value })}
-                    disabled={!isNew}
-                    placeholder="my-server"
-                    autoComplete="off"
-                    data-1p-ignore
-                    className={`input ${!isNew ? "opacity-50" : ""}`}
-                  />
-                </div>
-                <div>
-                  <label className="label">Name</label>
-                  <input
-                    type="text"
-                    value={editingServer.name}
-                    onChange={(e) => setEditingServer({ ...editingServer, name: e.target.value })}
-                    placeholder="My Server"
-                    autoComplete="off"
-                    data-1p-ignore
-                    className="input"
-                  />
-                </div>
+              <div>
+                <label className="label">Name</label>
+                <input
+                  type="text"
+                  value={editingServer.name}
+                  onChange={(e) => setEditingServer({ ...editingServer, name: e.target.value })}
+                  placeholder="My Server"
+                  autoComplete="off"
+                  data-1p-ignore
+                  className="input"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -262,7 +247,7 @@ export default function SettingsPage() {
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={saving || !editingServer.id || !editingServer.name || !editingServer.host}
+                  disabled={saving || !editingServer.name || !editingServer.host}
                   className="btn-primary flex items-center gap-1 px-3.5 py-2 text-[13px] font-medium"
                 >
                   <Check size={13} /> {saving ? "Saving..." : "Save"}
