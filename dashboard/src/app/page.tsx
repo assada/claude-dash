@@ -100,22 +100,17 @@ export default function Home() {
     );
   }
 
-  const canvasHeight = Math.max(
-    ...Object.values(positions).map((p) => p.y + 400),
-    600
-  );
-
   return (
-    <div className="min-h-screen bg-surface-0">
+    <div className="h-screen overflow-hidden bg-surface-0">
       {/* Reactive dot grid canvas */}
       <DotGridCanvas panelRectsRef={panelRectsRef} />
 
       {/* Noise overlay */}
       <div className="noise-overlay" />
 
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 backdrop-blur bg-surface-0/85 border-b border-surface-1">
-        <div className="flex items-center gap-3 px-6 py-3">
+      {/* Top bar — transparent, floating */}
+      <header className="fixed top-0 left-0 right-0 z-40 pointer-events-none">
+        <div className="flex items-center gap-3 px-6 py-3 pointer-events-auto">
           <div className="icon-box w-9 h-9">
             <Terminal size={18} className="text-text-secondary" />
           </div>
@@ -155,15 +150,15 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Canvas for panels */}
-      <main className="relative z-10" style={{ minHeight: canvasHeight }}>
-        {servers.length === 0 ? (
-          <div className="text-center py-20 text-text-faint">
+      {/* Panels (fixed position, float on viewport) */}
+      {servers.length === 0 ? (
+        <div className="fixed inset-0 flex items-center justify-center z-10 pointer-events-none">
+          <div className="text-center text-text-faint">
             <Terminal size={48} className="mx-auto mb-4 opacity-30" />
             <p className="text-[17px] font-medium mb-2">
               No servers configured
             </p>
-            <p className="text-[13px] text-text-muted">
+            <p className="text-[13px] text-text-muted pointer-events-auto">
               Go to{" "}
               <a href="/settings" className="text-accent hover:underline">
                 Settings
@@ -171,8 +166,9 @@ export default function Home() {
               to add agent servers
             </p>
           </div>
-        ) : (
-          servers.map((server) => {
+        </div>
+      ) : (
+        servers.map((server) => {
             const pos = positions[server.id];
             if (!pos) return null;
             return (
@@ -198,7 +194,6 @@ export default function Home() {
             );
           })
         )}
-      </main>
 
       <ArchiveStack
         count={archiveCount}
