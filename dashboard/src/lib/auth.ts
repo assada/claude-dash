@@ -1,17 +1,46 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
+import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { randomBytes } from "crypto";
 import { prisma } from "./prisma";
+
+const providers = [];
+
+if (process.env.ENABLE_GITHUB !== "false") {
+  providers.push(
+    GitHub({
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    })
+  );
+}
+
+if (process.env.ENABLE_GUEST !== "false") {
+  providers.push(
+    Credentials({
+      id: "guest",
+      name: "Guest",
+      credentials: {},
+      async authorize() {
+        const hex = randomBytes(4).toString("hex");
+        const emailHex = randomBytes(8).toString("hex");
+        const user = await prisma.user.create({
+          data: {
+            name: `Guest-${hex}`,
+            email: `guest-${emailHex}@guest.local`,
+          },
+        });
+        return { id: user.id, name: user.name, email: user.email };
+      },
+    })
+  );
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   adapter: PrismaAdapter(prisma),
-  providers: [
-    GitHub({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-    }),
-  ],
+  providers,
   session: { strategy: "jwt" },
   callbacks: {
     jwt({ token, user }) {
