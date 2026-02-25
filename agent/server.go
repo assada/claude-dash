@@ -37,6 +37,15 @@ type ServerMessage struct {
 	OS       string         `json:"os,omitempty"`
 	Dirs     []string       `json:"dirs,omitempty"`
 	Message  string         `json:"message,omitempty"`
+
+	// System metrics (included with machine_info)
+	CpuPercent float64 `json:"cpu_percent,omitempty"`
+	MemTotal   uint64  `json:"mem_total,omitempty"`
+	MemUsed    uint64  `json:"mem_used,omitempty"`
+	DiskTotal  uint64  `json:"disk_total,omitempty"`
+	DiskUsed   uint64  `json:"disk_used,omitempty"`
+	UptimeSecs uint64  `json:"uptime_secs,omitempty"`
+	LoadAvg    float64 `json:"load_avg,omitempty"`
 }
 
 type Server struct {
@@ -63,6 +72,8 @@ func newServer(config *Config, poller *Poller, scrollback *ScrollbackManager) *S
 	poller.onChange = func(sessions []*SessionInfo) {
 		s.broadcastSessions(sessions)
 	}
+
+	go s.metricsBroadcastLoop()
 
 	return s
 }
@@ -231,11 +242,19 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case "machine_info":
 			hostname, _ := os.Hostname()
+			m := CollectMetrics()
 			s.sendMessage(conn, ServerMessage{
-				Type:     "machine_info",
-				Hostname: hostname,
-				OS:       runtime.GOOS + "/" + runtime.GOARCH,
-				Dirs:     s.config.ExpandWorkdirs(),
+				Type:       "machine_info",
+				Hostname:   hostname,
+				OS:         runtime.GOOS + "/" + runtime.GOARCH,
+				Dirs:       s.config.ExpandWorkdirs(),
+				CpuPercent: m.CpuPercent,
+				MemTotal:   m.MemTotal,
+				MemUsed:    m.MemUsed,
+				DiskTotal:  m.DiskTotal,
+				DiskUsed:   m.DiskUsed,
+				UptimeSecs: m.UptimeSecs,
+				LoadAvg:    m.LoadAvg,
 			})
 
 		default:
@@ -336,6 +355,53 @@ func (s *Server) removeSubscriber(conn *websocket.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.subscribers, conn)
+}
+
+func (s *Server) metricsBroadcastLoop() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	// Prime the CPU delta tracker so the first real broadcast has data.
+	CollectMetrics()
+
+	for range ticker.C {
+		s.broadcastMachineInfo()
+	}
+}
+
+func (s *Server) broadcastMachineInfo() {
+	hostname, _ := os.Hostname()
+	m := CollectMetrics()
+
+	msg := ServerMessage{
+		Type:       "machine_info",
+		Hostname:   hostname,
+		OS:         runtime.GOOS + "/" + runtime.GOARCH,
+		Dirs:       s.config.ExpandWorkdirs(),
+		CpuPercent: m.CpuPercent,
+		MemTotal:   m.MemTotal,
+		MemUsed:    m.MemUsed,
+		DiskTotal:  m.DiskTotal,
+		DiskUsed:   m.DiskUsed,
+		UptimeSecs: m.UptimeSecs,
+		LoadAvg:    m.LoadAvg,
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+
+	s.mu.Lock()
+	subs := make([]*websocket.Conn, 0, len(s.subscribers))
+	for conn := range s.subscribers {
+		subs = append(subs, conn)
+	}
+	s.mu.Unlock()
+
+	for _, conn := range subs {
+		conn.WriteMessage(websocket.TextMessage, data)
+	}
 }
 
 func (s *Server) broadcastSessions(sessions []*SessionInfo) {

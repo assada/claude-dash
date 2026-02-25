@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
 import { ServerPanel } from "@/components/ServerPanel";
 import { DotGridCanvas, type PanelRect } from "@/components/DotGridCanvas";
 import { NewSessionModal } from "@/components/NewSessionModal";
+import { useCommandPaletteActions } from "@/components/CommandPalette";
 import { ArchiveStack } from "@/components/ArchiveStack";
 import { ArchiveDrawer } from "@/components/ArchiveDrawer";
 import { useSessionState } from "@/hooks/useSessionState";
@@ -26,6 +27,7 @@ export default function Home() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const router = useRouter();
 
+  const [metricsVisible, setMetricsVisible] = useState(true);
   const [zOrder, setZOrder] = useState<string[]>([]);
   const panelRectsRef = useRef<Record<string, PanelRect>>({});
 
@@ -34,6 +36,31 @@ export default function Home() {
     usePanelPositions(serverIds);
 
   useNotification(servers);
+
+  useEffect(() => {
+    if (localStorage.getItem("metrics-visible") === "false") {
+      setMetricsVisible(false);
+    }
+  }, []);
+
+  const toggleMetrics = useCallback(() => {
+    setMetricsVisible((v) => {
+      const next = !v;
+      localStorage.setItem("metrics-visible", String(next));
+      return next;
+    });
+  }, []);
+
+  useCommandPaletteActions({
+    onNewSession: (serverId) => {
+      setDefaultNewServerId(serverId);
+      setShowNewSession(true);
+    },
+    onArrange: arrangeAll,
+    onOpenArchive: () => setArchiveOpen(true),
+    onClearArchive: clearArchive,
+    onToggleMetrics: toggleMetrics,
+  });
 
   const bringToFront = useCallback((id: string) => {
     setZOrder((prev) => [...prev.filter((z) => z !== id), id]);
@@ -121,6 +148,7 @@ export default function Home() {
                 key={server.id}
                 server={server}
                 position={pos}
+                showMetrics={metricsVisible}
                 onPositionChange={(p) => updatePosition(server.id, p)}
                 onBringToFront={() => bringToFront(server.id)}
                 reportRect={reportRect(server.id)}
@@ -153,14 +181,14 @@ export default function Home() {
         onOpenTerminal={handleOpenTerminal}
       />
 
-      {showNewSession && (
-        <NewSessionModal
-          servers={servers}
-          defaultServerId={defaultNewServerId}
-          onClose={() => setShowNewSession(false)}
-          onSubmit={createSession}
-        />
-      )}
+      <NewSessionModal
+        open={showNewSession}
+        servers={servers}
+        defaultServerId={defaultNewServerId}
+        onClose={() => setShowNewSession(false)}
+        onSubmit={createSession}
+      />
+
     </div>
   );
 }

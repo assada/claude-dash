@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import type { AgentMessage, SessionInfo, ServerStatus } from "./types";
+import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus } from "./types";
 
 export interface ServerConfig {
   id: string;
@@ -22,6 +22,7 @@ class AgentConnection {
   public os?: string;
   public dirs?: string[];
   public sessions: SessionInfo[] = [];
+  public metrics?: ServerMetrics;
 
   constructor(
     public config: ServerConfig,
@@ -100,6 +101,17 @@ class AgentConnection {
         this.hostname = msg.hostname;
         this.os = msg.os;
         this.dirs = msg.dirs;
+        if (msg.mem_total && msg.mem_total > 0) {
+          this.metrics = {
+            cpuPercent: msg.cpu_percent ?? 0,
+            memTotal: msg.mem_total,
+            memUsed: msg.mem_used ?? 0,
+            diskTotal: msg.disk_total ?? 0,
+            diskUsed: msg.disk_used ?? 0,
+            uptimeSecs: msg.uptime_secs ?? 0,
+            loadAvg: msg.load_avg ?? 0,
+          };
+        }
         this.onUpdate();
         break;
     }
@@ -341,6 +353,7 @@ class AgentManager {
           os: conn.os,
           dirs: conn.dirs,
           sessions: conn.sessions,
+          metrics: conn.metrics,
         });
       }
     }

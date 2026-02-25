@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { X, FolderOpen } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { X, FolderOpen, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Select } from "@/components/ui/Select";
+import { Checkbox } from "@/components/ui/Checkbox";
 import type { ServerStatus } from "@/lib/types";
 
 function normalizePath(path: string): string {
@@ -48,22 +50,32 @@ function isPathAllowed(path: string, dirs: string[]): boolean {
 }
 
 export function NewSessionModal({
+  open,
   servers,
   defaultServerId,
   onClose,
   onSubmit,
 }: {
+  open: boolean;
   servers: ServerStatus[];
   defaultServerId?: string;
   onClose: () => void;
   onSubmit: (serverId: string, workdir: string, name: string, dangerouslySkipPermissions?: boolean) => void;
 }) {
-  const [serverId, setServerId] = useState(
-    defaultServerId || servers.find((s) => s.online)?.id || servers[0]?.id || ""
-  );
+  const [serverId, setServerId] = useState("");
   const [workdir, setWorkdir] = useState("");
   const [name, setName] = useState("");
   const [skipPermissions, setSkipPermissions] = useState(false);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (open) {
+      setServerId(defaultServerId || servers.find((s) => s.online)?.id || servers[0]?.id || "");
+      setWorkdir("");
+      setName("");
+      setSkipPermissions(false);
+    }
+  }, [open, defaultServerId, servers]);
 
   const selectedServer = servers.find((s) => s.id === serverId);
   const dirs = selectedServer?.dirs || [];
@@ -81,22 +93,28 @@ export function NewSessionModal({
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 flex items-center justify-center z-50 bg-black/60"
-      >
+      {open && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{
-            opacity: { duration: 0.15 },
-            scale: { type: "spring", stiffness: 400, damping: 25 },
-          }}
-          className="surface w-full max-w-md p-6"
+          key="new-session-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black/60"
+          onClick={onClose}
         >
+          <motion.div
+            key="new-session-content"
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{
+              opacity: { duration: 0.15 },
+              scale: { type: "spring", stiffness: 400, damping: 25 },
+            }}
+            className="surface w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
           <div className="flex items-center justify-between mb-5">
             <span className="text-[17px] font-semibold text-text-secondary">
               New Session
@@ -110,17 +128,15 @@ export function NewSessionModal({
             {/* Server */}
             <div>
               <label className="label">Server</label>
-              <select
+              <Select
                 value={serverId}
-                onChange={(e) => { setServerId(e.target.value); setWorkdir(""); }}
-                className="input"
-              >
-                {servers.map((s) => (
-                  <option key={s.id} value={s.id} disabled={!s.online}>
-                    {s.name}{!s.online ? " (offline)" : ""}
-                  </option>
-                ))}
-              </select>
+                options={servers.map((s) => ({
+                  value: s.id,
+                  label: s.name + (!s.online ? " (offline)" : ""),
+                  disabled: !s.online,
+                }))}
+                onChange={(v) => { setServerId(v); setWorkdir(""); }}
+              />
             </div>
 
             {/* Working directory */}
@@ -175,17 +191,17 @@ export function NewSessionModal({
             </div>
 
             {/* Skip permissions */}
-            <label className="flex items-center gap-2 cursor-pointer select-none py-1">
-              <input
-                type="checkbox"
-                checked={skipPermissions}
-                onChange={(e) => setSkipPermissions(e.target.checked)}
-                className="w-3.5 h-3.5 rounded accent-orange-500"
-              />
-              <span className="text-[12px] text-text-muted">
-                --dangerously-skip-permissions
-              </span>
-            </label>
+            <Checkbox
+              checked={skipPermissions}
+              onChange={setSkipPermissions}
+              color="orange-500"
+              label={
+                <span className="flex items-center gap-1.5">
+                  <AlertTriangle size={11} className="text-orange-400" />
+                  --dangerously-skip-permissions
+                </span>
+              }
+            />
 
             {/* Submit */}
             <div className="flex justify-end gap-2 pt-1">
@@ -206,8 +222,9 @@ export function NewSessionModal({
               </button>
             </div>
           </div>
+          </motion.div>
         </motion.div>
-      </motion.div>
+      )}
     </AnimatePresence>
   );
 }
