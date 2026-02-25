@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-agent:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        working-directory: agent
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          go build -ldflags "-s -w -X main.version=${VERSION}" -o ccdash-agent-${{ matrix.suffix }} .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccdash-agent-${{ matrix.suffix }}
+          path: agent/ccdash-agent-${{ matrix.suffix }}
+
+  build-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build dashboard image
+        run: |
+          docker build -t ccdash-dashboard:${GITHUB_REF_NAME} ./dashboard
+          docker save ccdash-dashboard:${GITHUB_REF_NAME} | gzip > ccdash-dashboard-${GITHUB_REF_NAME}.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccdash-dashboard
+          path: ccdash-dashboard-*.tar.gz
+
+  release:
+    needs: [build-agent, build-dashboard]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          cp artifacts/ccdash-agent-linux-amd64/ccdash-agent-linux-amd64 release/
+          cp artifacts/ccdash-agent-linux-arm64/ccdash-agent-linux-arm64 release/
+          cp artifacts/ccdash-agent-darwin-arm64/ccdash-agent-darwin-arm64 release/
+          cp artifacts/ccdash-dashboard/ccdash-dashboard-*.tar.gz release/
+          chmod +x release/ccdash-agent-*
+          cd release && sha256sum * > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release/ccdash-agent-linux-amd64
+            release/ccdash-agent-linux-arm64
+            release/ccdash-agent-darwin-arm64
+            release/ccdash-dashboard-*.tar.gz
+            release/checksums.txt
