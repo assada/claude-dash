@@ -1,15 +1,6 @@
 #!/bin/bash
 set -e
 
-# When piped through curl, stdin is the script itself.
-# Open /dev/tty on fd 3 for interactive input.
-if [ -e /dev/tty ] && exec 3</dev/tty 2>/dev/null; then
-    HAS_TTY=1
-else
-    exec 3<&0
-    HAS_TTY=0
-fi
-
 REPO="assada/claude-dash"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CONFIG_DIR="$HOME/.claude-dashboard"
@@ -27,19 +18,6 @@ info()  { echo -e "${CYAN}==>${NC} $*"; }
 ok()    { echo -e "${GREEN}==>${NC} $*"; }
 warn()  { echo -e "${YELLOW}==>${NC} $*"; }
 err()   { echo -e "${RED}==>${NC} $*" >&2; }
-
-# ask "prompt text" DEFAULT_VALUE
-# Result is stored in $REPLY
-ask() {
-    if [ "$HAS_TTY" = "1" ]; then
-        printf '%s' "$1" >&3
-        read -r REPLY <&3
-    else
-        # Non-interactive: use default
-        REPLY=""
-    fi
-    REPLY="${REPLY:-$2}"
-}
 
 echo -e "${BOLD}"
 echo "  ╔══════════════════════════════════════╗"
@@ -71,8 +49,9 @@ info "Platform: ${BOLD}${PLATFORM}${NC}"
 if ! command -v tmux &> /dev/null; then
     warn "tmux is not installed!"
     if [ "$OS" = "linux" ]; then
-        ask "  Install tmux now? [Y/n] " "y"
-        if [ "$REPLY" != "n" ] && [ "$REPLY" != "N" ]; then
+        printf "  Install tmux now? [Y/n] " > /dev/tty
+        read -r ans < /dev/tty
+        if [ "$ans" != "n" ] && [ "$ans" != "N" ]; then
             if command -v apt-get &> /dev/null; then
                 sudo apt-get update -qq && sudo apt-get install -y -qq tmux
             elif command -v yum &> /dev/null; then
@@ -88,8 +67,9 @@ if ! command -v tmux &> /dev/null; then
             exit 1
         fi
     elif [ "$OS" = "darwin" ]; then
-        ask "  Install tmux via Homebrew? [Y/n] " "y"
-        if [ "$REPLY" != "n" ] && [ "$REPLY" != "N" ]; then
+        printf "  Install tmux via Homebrew? [Y/n] " > /dev/tty
+        read -r ans < /dev/tty
+        if [ "$ans" != "n" ] && [ "$ans" != "N" ]; then
             brew install tmux
         else
             err "tmux is required. Aborting."
@@ -107,41 +87,45 @@ echo -e "${BOLD}Configuration${NC}"
 echo ""
 
 # Port
-ask "  Port [9100]: " "9100"
-PORT="$REPLY"
+printf "  Port [9100]: " > /dev/tty
+read -r PORT < /dev/tty
+PORT="${PORT:-9100}"
 
 # Bind address
-if [ "$HAS_TTY" = "1" ]; then
-    echo "" >&3
-    echo "  Listen on:" >&3
-    echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended" >&3
-    echo "    2) All interfaces (0.0.0.0)" >&3
-    echo "    3) Localhost only (127.0.0.1)" >&3
-    echo "    4) Custom IP" >&3
-fi
-ask "  Choose [1]: " "1"
-BIND_CHOICE="$REPLY"
+echo "" > /dev/tty
+echo "  Listen on:" > /dev/tty
+echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended" > /dev/tty
+echo "    2) All interfaces (0.0.0.0)" > /dev/tty
+echo "    3) Localhost only (127.0.0.1)" > /dev/tty
+echo "    4) Custom IP" > /dev/tty
+printf "  Choose [1]: " > /dev/tty
+read -r BIND_CHOICE < /dev/tty
+BIND_CHOICE="${BIND_CHOICE:-1}"
 
 case "$BIND_CHOICE" in
     1) BIND="" ;;
     2) BIND="0.0.0.0" ;;
     3) BIND="127.0.0.1" ;;
-    4) ask "  IP address: " ""; BIND="$REPLY" ;;
+    4)
+        printf "  IP address: " > /dev/tty
+        read -r BIND < /dev/tty
+        ;;
     *) BIND="" ;;
 esac
 
 # Auth token
-if [ "$HAS_TTY" = "1" ]; then echo "" >&3; fi
-ask "  Auth token (leave empty to auto-generate): " ""
-TOKEN="$REPLY"
+echo "" > /dev/tty
+printf "  Auth token (leave empty to auto-generate): " > /dev/tty
+read -r TOKEN < /dev/tty
 if [ -z "$TOKEN" ]; then
     TOKEN=$(openssl rand -hex 24 2>/dev/null || cat /dev/urandom | head -c 24 | xxd -p)
 fi
 
 # Working directories
-if [ "$HAS_TTY" = "1" ]; then echo "" >&3; fi
-ask "  Working directories (comma-separated) [~/projects]: " "~/projects"
-WORKDIRS_INPUT="$REPLY"
+echo "" > /dev/tty
+printf "  Working directories (comma-separated) [~/projects]: " > /dev/tty
+read -r WORKDIRS_INPUT < /dev/tty
+WORKDIRS_INPUT="${WORKDIRS_INPUT:-~/projects}"
 
 # ── Download binary ──────────────────────────────────────────────
 
@@ -199,8 +183,9 @@ done
 SKIP_CONFIG=""
 if [ -f "$CONFIG_DIR/agent.yaml" ]; then
     warn "Config already exists: $CONFIG_DIR/agent.yaml"
-    ask "  Overwrite? [y/N] " "n"
-    if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
+    printf "  Overwrite? [y/N] " > /dev/tty
+    read -r ans < /dev/tty
+    if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
         info "Keeping existing config."
         SKIP_CONFIG=1
     fi
@@ -329,6 +314,3 @@ echo "  (save this — you'll need it in the dashboard config)"
 echo ""
 echo "  Test: curl http://localhost:${PORT}/health"
 echo ""
-
-# Close fd 3
-if [ "$HAS_TTY" = "1" ]; then exec 3<&-; fi
