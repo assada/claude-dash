@@ -3,7 +3,12 @@ set -e
 
 # When piped through curl, stdin is the script itself.
 # Open /dev/tty on fd 3 for interactive input.
-exec 3</dev/tty
+if [ -e /dev/tty ] && exec 3</dev/tty 2>/dev/null; then
+    HAS_TTY=1
+else
+    exec 3<&0
+    HAS_TTY=0
+fi
 
 REPO="assada/claude-dash"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
@@ -26,8 +31,13 @@ err()   { echo -e "${RED}==>${NC} $*" >&2; }
 # ask "prompt text" DEFAULT_VALUE
 # Result is stored in $REPLY
 ask() {
-    printf '%s' "$1" >&3
-    read -r REPLY <&3
+    if [ "$HAS_TTY" = "1" ]; then
+        printf '%s' "$1" >&3
+        read -r REPLY <&3
+    else
+        # Non-interactive: use default
+        REPLY=""
+    fi
     REPLY="${REPLY:-$2}"
 }
 
@@ -101,12 +111,14 @@ ask "  Port [9100]: " "9100"
 PORT="$REPLY"
 
 # Bind address
-echo "" >&3
-echo "  Listen on:" >&3
-echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended" >&3
-echo "    2) All interfaces (0.0.0.0)" >&3
-echo "    3) Localhost only (127.0.0.1)" >&3
-echo "    4) Custom IP" >&3
+if [ "$HAS_TTY" = "1" ]; then
+    echo "" >&3
+    echo "  Listen on:" >&3
+    echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended" >&3
+    echo "    2) All interfaces (0.0.0.0)" >&3
+    echo "    3) Localhost only (127.0.0.1)" >&3
+    echo "    4) Custom IP" >&3
+fi
 ask "  Choose [1]: " "1"
 BIND_CHOICE="$REPLY"
 
@@ -119,7 +131,7 @@ case "$BIND_CHOICE" in
 esac
 
 # Auth token
-echo "" >&3
+if [ "$HAS_TTY" = "1" ]; then echo "" >&3; fi
 ask "  Auth token (leave empty to auto-generate): " ""
 TOKEN="$REPLY"
 if [ -z "$TOKEN" ]; then
@@ -127,7 +139,7 @@ if [ -z "$TOKEN" ]; then
 fi
 
 # Working directories
-echo "" >&3
+if [ "$HAS_TTY" = "1" ]; then echo "" >&3; fi
 ask "  Working directories (comma-separated) [~/projects]: " "~/projects"
 WORKDIRS_INPUT="$REPLY"
 
@@ -319,4 +331,4 @@ echo "  Test: curl http://localhost:${PORT}/health"
 echo ""
 
 # Close fd 3
-exec 3<&-
+if [ "$HAS_TTY" = "1" ]; then exec 3<&-; fi
