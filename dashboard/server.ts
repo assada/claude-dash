@@ -281,6 +281,14 @@ app.prepare().then(() => {
         }
       });
 
+      // Catch-up: re-send state after connections have had time to establish
+      setTimeout(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          const updated = agentManager.getServersForUser(userId);
+          ws.send(JSON.stringify({ type: "state_update", servers: updated }));
+        }
+      }, 3000);
+
       // Now process any messages that arrived during init
       ready = true;
       for (const msg of messageQueue) {
