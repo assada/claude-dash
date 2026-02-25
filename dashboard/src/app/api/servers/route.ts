@@ -29,6 +29,7 @@ export async function GET() {
       online: live?.online || false,
       hostname: live?.hostname,
       os: live?.os,
+      agentVersion: live?.agentVersion,
       dirs: live?.dirs,
       sessions: live?.sessions || [],
     };

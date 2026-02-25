@@ -20,6 +20,7 @@ class AgentConnection {
   public online = false;
   public hostname?: string;
   public os?: string;
+  public agentVersion?: string;
   public dirs?: string[];
   public sessions: SessionInfo[] = [];
   public metrics?: ServerMetrics;
@@ -100,6 +101,7 @@ class AgentConnection {
       case "machine_info":
         this.hostname = msg.hostname;
         this.os = msg.os;
+        this.agentVersion = msg.version;
         this.dirs = msg.dirs;
         if (msg.mem_total && msg.mem_total > 0) {
           this.metrics = {
@@ -351,6 +353,7 @@ class AgentManager {
           online: conn.online,
           hostname: conn.hostname,
           os: conn.os,
+          agentVersion: conn.agentVersion,
           dirs: conn.dirs,
           sessions: conn.sessions,
           metrics: conn.metrics,
@@ -458,6 +461,12 @@ class AgentManager {
     conn.sessions = conn.sessions.filter((s) => s.state !== "dead");
     this.notifyUser(userId);
     conn.send({ type: "clear_dead_sessions" });
+  }
+
+  updateAgent(userId: string, serverId: string) {
+    const conn = this.connections.get(connKey(userId, serverId));
+    if (!conn) return;
+    conn.send({ type: "self_update" });
   }
 }
 

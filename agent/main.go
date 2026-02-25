@@ -14,6 +14,8 @@ import (
 	"syscall"
 )
 
+var version = "dev"
+
 func main() {
 	configPath := flag.String("config", "", "Path to config file")
 	bindFlag := flag.String("bind", "", "Override bind address (e.g. 0.0.0.0 for local testing)")
@@ -79,7 +81,7 @@ func main() {
 		log.Fatalf("Failed to listen on %s: %v", listenAddr, err)
 	}
 
-	log.Printf("ccdash-agent listening on %s", listenAddr)
+	log.Printf("ccdash-agent %s listening on %s", version, listenAddr)
 	if config.Token != "" {
 		log.Printf("Auth token configured")
 	} else {

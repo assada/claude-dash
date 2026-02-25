@@ -19,6 +19,7 @@ import type { PanelPosition } from "@/hooks/usePanelPositions";
 import type { PanelRect } from "./DotGridCanvas";
 
 // Physics constants — matching robot-components exactly
+const EXPECTED_VERSION = process.env.NEXT_PUBLIC_AGENT_VERSION || "dev";
 const PANEL_WIDTH = 320;
 const BOUNDARY_MARGIN = 8;
 const MAX_VELOCITY = 40;
@@ -648,6 +649,19 @@ export function ServerPanel({
             <WifiOff size={10} />
           </span>
         )}
+
+        {server.online &&
+          server.agentVersion &&
+          EXPECTED_VERSION !== "dev" &&
+          server.agentVersion !== "dev" &&
+          server.agentVersion !== EXPECTED_VERSION && (
+            <span
+              className="text-orange-500 text-[11px] font-bold pointer-events-none"
+              title={`Agent ${server.agentVersion} — expected ${EXPECTED_VERSION}`}
+            >
+              !
+            </span>
+          )}
 
         <button
           onClick={(e) => {

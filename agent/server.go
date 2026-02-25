@@ -35,6 +35,7 @@ type ServerMessage struct {
 	Data     string         `json:"data,omitempty"`
 	Hostname string         `json:"hostname,omitempty"`
 	OS       string         `json:"os,omitempty"`
+	Version  string         `json:"version,omitempty"`
 	Dirs     []string       `json:"dirs,omitempty"`
 	Message  string         `json:"message,omitempty"`
 
@@ -247,6 +248,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				Type:       "machine_info",
 				Hostname:   hostname,
 				OS:         runtime.GOOS + "/" + runtime.GOARCH,
+				Version:    version,
 				Dirs:       s.config.ExpandWorkdirs(),
 				CpuPercent: m.CpuPercent,
 				MemTotal:   m.MemTotal,
@@ -256,6 +258,20 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				UptimeSecs: m.UptimeSecs,
 				LoadAvg:    m.LoadAvg,
 			})
+
+		case "self_update":
+			go func() {
+				log.Println("Self-update requested via WebSocket")
+				s.sendMessage(conn, ServerMessage{Type: "update_status", Message: "downloading"})
+				if err := selfUpdate(); err != nil {
+					log.Printf("Self-update failed: %v", err)
+					s.sendMessage(conn, ServerMessage{Type: "update_status", Message: "error: " + err.Error()})
+					return
+				}
+				s.sendMessage(conn, ServerMessage{Type: "update_status", Message: "restarting"})
+				log.Println("Self-update complete, exiting for restart")
+				os.Exit(0)
+			}()
 
 		default:
 			s.sendError(conn, "unknown message type: "+msg.Type)
@@ -377,6 +393,7 @@ func (s *Server) broadcastMachineInfo() {
 		Type:       "machine_info",
 		Hostname:   hostname,
 		OS:         runtime.GOOS + "/" + runtime.GOARCH,
+		Version:    version,
 		Dirs:       s.config.ExpandWorkdirs(),
 		CpuPercent: m.CpuPercent,
 		MemTotal:   m.MemTotal,
