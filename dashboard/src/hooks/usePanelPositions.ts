@@ -6,7 +6,7 @@ const STORAGE_KEY = "panel-positions";
 const PANEL_WIDTH = 320;
 const GAP = 24;
 const PAD_X = 32;
-const PAD_Y = 16;
+const PAD_Y = 56; // below header area
 
 export interface PanelPosition {
   x: number;

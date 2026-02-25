@@ -148,8 +148,8 @@ function getViewportBounds(panelWidth: number, panelHeight: number) {
     maxX: window.innerWidth - panelWidth - BOUNDARY_MARGIN,
     minY: BOUNDARY_MARGIN,
     maxY: Math.max(
-      window.innerHeight + window.scrollY - panelHeight - BOUNDARY_MARGIN,
-      BOUNDARY_MARGIN + 100
+      window.innerHeight - panelHeight - BOUNDARY_MARGIN,
+      BOUNDARY_MARGIN + 48
     ),
   };
 }
@@ -208,16 +208,15 @@ export function ServerPanel({
     }
   }, [server.sessions.length]);
 
-  // Report actual viewport rect to dot grid (uses getBoundingClientRect for accuracy)
+  // Report viewport rect to dot grid
   const syncRect = useCallback(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    const br = panel.getBoundingClientRect();
     reportRect({
-      x: br.left,
-      y: br.top + window.scrollY,
-      w: br.width,
-      h: br.height,
+      x: posRef.current.x,
+      y: posRef.current.y,
+      w: PANEL_WIDTH,
+      h: panel.offsetHeight,
     });
   }, [reportRect]);
 
@@ -498,7 +497,7 @@ export function ServerPanel({
   return (
     <div
       ref={panelRef}
-      className="panel overflow-hidden absolute"
+      className="panel overflow-hidden fixed"
       style={{
         width: PANEL_WIDTH,
         left: position.x,
