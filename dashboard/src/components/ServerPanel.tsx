@@ -159,6 +159,10 @@ function formatBytes(bytes: number): string {
 
 const GRAPH_BARS = 8;
 
+// Module-level cache — survives SPA navigation, cleared only on full reload
+type MetricsHistory = { cpu: number[]; mem: number[]; disk: number[]; key: string };
+const metricsCache = new Map<string, MetricsHistory>();
+
 function barColor(pct: number): string {
   if (pct < 60) return "bg-ok";
   if (pct < 85) return "bg-yellow-500";
@@ -189,13 +193,7 @@ function MicroGraph({ values }: { values: number[] }) {
   );
 }
 
-function MetricsBar({ metrics }: { metrics: ServerMetrics }) {
-  const [history, setHistory] = useState<{
-    cpu: number[];
-    mem: number[];
-    disk: number[];
-  }>({ cpu: [], mem: [], disk: [] });
-
+function MetricsBar({ serverId, metrics }: { serverId: string; metrics: ServerMetrics }) {
   const cpuPct = Math.round(metrics.cpuPercent);
   const memPct =
     metrics.memTotal > 0
@@ -207,18 +205,31 @@ function MetricsBar({ metrics }: { metrics: ServerMetrics }) {
       : 0;
 
   const snapshotKey = `${cpuPct}-${memPct}-${metrics.uptimeSecs}`;
-  const prevKeyRef = useRef("");
 
+  // Read or init from cache
+  const cached = metricsCache.get(serverId);
+  if (!cached || cached.key !== snapshotKey) {
+    const prev = cached || { cpu: [], mem: [], disk: [], key: "" };
+    const next: MetricsHistory = {
+      cpu: [...prev.cpu, cpuPct].slice(-GRAPH_BARS),
+      mem: [...prev.mem, memPct].slice(-GRAPH_BARS),
+      disk: [...prev.disk, diskPct].slice(-GRAPH_BARS),
+      key: snapshotKey,
+    };
+    metricsCache.set(serverId, next);
+  }
+
+  const history = metricsCache.get(serverId)!;
+
+  // Force re-render when snapshot changes
+  const [, setTick] = useState(0);
+  const prevKeyRef = useRef(snapshotKey);
   useEffect(() => {
     if (snapshotKey !== prevKeyRef.current) {
       prevKeyRef.current = snapshotKey;
-      setHistory((h) => ({
-        cpu: [...h.cpu, cpuPct].slice(-GRAPH_BARS),
-        mem: [...h.mem, memPct].slice(-GRAPH_BARS),
-        disk: [...h.disk, diskPct].slice(-GRAPH_BARS),
-      }));
+      setTick((t) => t + 1);
     }
-  }, [snapshotKey, cpuPct, memPct, diskPct]);
+  }, [snapshotKey]);
 
   return (
     <div className="px-4 py-2 border-t border-border-subtle grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -706,7 +717,7 @@ export function ServerPanel({
       >
         <div ref={contentRef} className="pb-2 pt-1">
           {server.online && server.metrics && showMetrics && (
-            <MetricsBar metrics={server.metrics} />
+            <MetricsBar serverId={server.id} metrics={server.metrics} />
           )}
           {server.online ? (
             <>
