@@ -67,7 +67,7 @@ export function NewSessionModal({
   const [name, setName] = useState("");
   const [skipPermissions, setSkipPermissions] = useState(false);
 
-  // Reset form when modal opens
+  // Reset form when modal opens or server count changes (not on metric updates)
   useEffect(() => {
     if (open) {
       setServerId(defaultServerId || servers.find((s) => s.online)?.id || servers[0]?.id || "");
@@ -75,14 +75,7 @@ export function NewSessionModal({
       setName("");
       setSkipPermissions(false);
     }
-  }, [open, defaultServerId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Pick a server once servers arrive (if none selected yet)
-  useEffect(() => {
-    if (open && !serverId && servers.length > 0) {
-      setServerId(servers.find((s) => s.online)?.id || servers[0]?.id || "");
-    }
-  }, [open, serverId, servers]);
+  }, [open, defaultServerId, servers.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedServer = servers.find((s) => s.id === serverId);
   const dirs = selectedServer?.dirs || [];
