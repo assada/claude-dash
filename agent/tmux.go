@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 	"time"
@@ -36,17 +37,28 @@ func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPe
 		return "", fmt.Errorf("tmux new-session: %s: %w", string(out), err)
 	}
 
-	// Set history limit
-	cmd = exec.Command("tmux", "set-option", "-t", sessionID, "history-limit", fmt.Sprintf("%d", historyLimit))
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("tmux set-option: %s: %w", string(out), err)
+	// Make tmux invisible and behave like a plain terminal.
+	opts := map[string]string{
+		"history-limit":          fmt.Sprintf("%d", historyLimit),
+		"mouse":                  "on",    // wheel = scroll pane history, not arrow keys
+		"status":                 "off",   // hide the green status bar
+		"escape-time":            "0",     // no delay after Esc (snappy input)
+		"focus-events":           "on",    // forward focus in/out to the app
+		"default-terminal":       "xterm-256color",
+		"set-clipboard":          "on",    // OSC 52 clipboard passthrough
+		"exit-unattached":        "off",   // keep session alive when we detach
+		"destroy-unattached":     "off",
+		"allow-passthrough":      "on",    // let apps use passthrough sequences
+		"visual-activity":        "off",   // no flashing "Activity in window N"
+		"visual-bell":            "off",
+		"visual-silence":         "off",
 	}
-
-	// Enable mouse mode so wheel events scroll pane history
-	// instead of being converted to arrow-key sequences by xterm.js
-	cmd = exec.Command("tmux", "set-option", "-t", sessionID, "mouse", "on")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("tmux set-option mouse: %s: %w", string(out), err)
+	for k, v := range opts {
+		cmd = exec.Command("tmux", "set-option", "-t", sessionID, k, v)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			// Non-fatal: older tmux may not support all options
+			log.Printf("tmux set-option %s: %s", k, strings.TrimSpace(string(out)))
+		}
 	}
 
 	// Start Claude Code inside
