@@ -97,7 +97,7 @@ export function SessionCard({
 
       {/* Last line preview */}
       {session.last_line && (
-        <div className="text-xs text-zinc-600 font-mono truncate">
+        <div className="text-xs text-zinc-600 truncate" style={{ fontFamily: "'JetBrains Mono NF', 'JetBrains Mono', Menlo, monospace" }}>
           {session.last_line}
         </div>
       )}
