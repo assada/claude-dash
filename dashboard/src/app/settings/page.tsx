@@ -1,8 +1,45 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
+
+const INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/assada/claude-dash/master/agent/install.sh | bash";
+
+function CopyCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [command]);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={copy}
+      onKeyDown={(e) => e.key === "Enter" && copy()}
+      className="group relative flex items-center gap-3 rounded-lg border border-surface-3 bg-[#0d0d0d] px-4 py-3 transition-colors hover:border-border-hover"
+    >
+      <span className="shrink-0 text-text-faint">$</span>
+      <code className="flex-1 overflow-x-auto text-[12.5px] text-text-secondary hide-scrollbar whitespace-nowrap">
+        {command}
+      </code>
+      <span
+        className={`shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all duration-200 ${
+          copied
+            ? "bg-ok/15 text-ok"
+            : "bg-surface-2 text-text-faint group-hover:text-text-muted"
+        }`}
+      >
+        {copied ? <Check size={12} /> : <Copy size={12} />}
+        {copied ? "Copied" : "Copy"}
+      </span>
+    </div>
+  );
+}
 
 interface ServerForm {
   id: string;
@@ -127,6 +164,21 @@ export default function SettingsPage() {
               No servers configured. Add one to get started.
             </div>
           )}
+        </div>
+
+        {/* Agent setup */}
+        <div className="mb-6 rounded-xl border border-surface-2 bg-surface-1/60 p-5">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-surface-2 border border-surface-3">
+              <Terminal size={14} className="text-text-muted" />
+            </div>
+            <span className="text-[13px] font-semibold text-text-secondary">Agent Setup</span>
+          </div>
+          <p className="text-[12.5px] text-text-muted leading-relaxed mb-3">
+            Run this on any machine to install the agent. It downloads the binary, walks you through
+            config, and sets up autostart.
+          </p>
+          <CopyCommand command={INSTALL_CMD} />
         </div>
 
         {/* Edit form */}
