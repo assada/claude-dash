@@ -40,6 +40,7 @@ func init() {
 		regexp.MustCompile(`(?i)^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s*(reading|writing|searching|running|executing)`),
 		regexp.MustCompile(`(?i)^(bash|edit|multiedit|read|write|glob|grep|todoread|todowrite)\s*:`),
 		regexp.MustCompile(`(?i)^\s*tool\s*:|using tool`),
+		regexp.MustCompile(`(?i)esc to interrupt`),
 	}
 
 	pagerNeedsAttentionPatterns = []*regexp.Regexp{

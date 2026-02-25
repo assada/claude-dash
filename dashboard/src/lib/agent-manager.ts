@@ -1,6 +1,13 @@
 import WebSocket from "ws";
-import { loadConfig, type ServerConfig } from "./config";
 import type { AgentMessage, SessionInfo, ServerStatus } from "./types";
+
+export interface ServerConfig {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  token: string;
+}
 
 type StateCallback = (servers: ServerStatus[]) => void;
 
@@ -40,7 +47,6 @@ class AgentConnection {
     this.ws.on("open", () => {
       this.online = true;
       this.reconnectDelay = 1000;
-      // Request machine info
       this.send({ type: "machine_info" });
       this.onUpdate();
     });
@@ -55,7 +61,6 @@ class AgentConnection {
     this.ws.on("close", () => {
       this.online = false;
       this.ws = null;
-      // Mark all sessions as dead so they flow into archive
       this.sessions = this.sessions.map((s) => ({
         ...s,
         state: "dead" as const,
@@ -68,7 +73,6 @@ class AgentConnection {
     this.ws.on("error", () => {
       this.online = false;
       this.ws = null;
-      // Mark all sessions as dead so they flow into archive
       this.sessions = this.sessions.map((s) => ({
         ...s,
         state: "dead" as const,
@@ -131,7 +135,6 @@ class AgentConnection {
     this.online = false;
   }
 
-  // Create a terminal proxy: agent WS ↔ browser WS
   createTerminalProxy(
     sessionId: string,
     onOutput: (data: string) => void,
@@ -146,10 +149,11 @@ class AgentConnection {
     close: () => void;
   } {
     const url = `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
+    console.log(`[terminal-proxy] connecting to ${this.config.host}:${this.config.port} for session ${sessionId}`);
     const termWs = new WebSocket(url);
 
     termWs.on("open", () => {
-      // Attach to session
+      console.log(`[terminal-proxy] connected, sending attach for ${sessionId}`);
       termWs.send(
         JSON.stringify({
           type: "attach",
@@ -173,8 +177,12 @@ class AgentConnection {
       } catch {}
     });
 
-    termWs.on("close", () => {});
-    termWs.on("error", () => {});
+    termWs.on("close", (code, reason) => {
+      console.log(`[terminal-proxy] closed code=${code} reason=${reason}`);
+    });
+    termWs.on("error", (err) => {
+      console.error(`[terminal-proxy] error:`, err.message);
+    });
 
     return {
       sendInput: (data: string) => {
@@ -198,11 +206,7 @@ class AgentConnection {
     };
   }
 
-  getScrollback(
-    sessionId: string,
-    callback: (data: string) => void
-  ) {
-    // Use the control connection to request scrollback
+  getScrollback(sessionId: string, callback: (data: string) => void) {
     const url = `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
     const sbWs = new WebSocket(url);
 
@@ -228,112 +232,214 @@ class AgentConnection {
   }
 }
 
+// Key format: "userId:serverId"
+function connKey(userId: string, serverId: string) {
+  return `${userId}:${serverId}`;
+}
+
+const CLEANUP_DELAY_MS = 5 * 60 * 1000; // 5 minutes
+
 class AgentManager {
   private connections = new Map<string, AgentConnection>();
-  private stateCallbacks: StateCallback[] = [];
-  private initialized = false;
+  // Per-user state callbacks: userId -> callbacks[]
+  private userCallbacks = new Map<string, StateCallback[]>();
+  // Per-user WS count for lazy cleanup
+  private userWsCount = new Map<string, number>();
+  // Per-user cleanup timers
+  private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  init() {
-    if (this.initialized) return;
-    this.initialized = true;
-    this.refreshConnections();
-  }
+  /**
+   * Connect to servers for a user. Called when a WebSocket connects.
+   * Adds new connections, removes ones for servers no longer in the list.
+   */
+  ensureUserConnections(userId: string, servers: ServerConfig[]) {
+    const desiredKeys = new Set(servers.map((s) => connKey(userId, s.id)));
 
-  refreshConnections() {
-    const config = loadConfig();
-
-    // Close removed servers
-    for (const [id, conn] of this.connections) {
-      if (!config.servers.find((s) => s.id === id)) {
+    // Remove connections for servers no longer in the user's list
+    for (const [key, conn] of this.connections) {
+      if (key.startsWith(`${userId}:`) && !desiredKeys.has(key)) {
+        for (const session of conn.sessions) {
+          if (session.state !== "dead") {
+            conn.send({ type: "kill_session", session_id: session.id });
+          }
+        }
+        conn.send({ type: "clear_dead_sessions" });
         conn.disconnect();
-        this.connections.delete(id);
+        this.connections.delete(key);
       }
     }
 
-    // Add/update servers
-    let changed = false;
-    for (const server of config.servers) {
-      const existing = this.connections.get(server.id);
+    // Add/update connections
+    for (const server of servers) {
+      const key = connKey(userId, server.id);
+      const existing = this.connections.get(key);
+
       if (!existing) {
-        const conn = new AgentConnection(server, () => this.notifyState());
-        this.connections.set(server.id, conn);
+        const conn = new AgentConnection(server, () =>
+          this.notifyUser(userId)
+        );
+        this.connections.set(key, conn);
         conn.connect();
-        changed = true;
       } else if (
         existing.config.host !== server.host ||
         existing.config.port !== server.port ||
         existing.config.token !== server.token ||
         existing.config.name !== server.name
       ) {
-        // Server config changed — reconnect
         existing.disconnect();
-        const conn = new AgentConnection(server, () => this.notifyState());
-        this.connections.set(server.id, conn);
+        const conn = new AgentConnection(server, () =>
+          this.notifyUser(userId)
+        );
+        this.connections.set(key, conn);
         conn.connect();
-        changed = true;
       }
     }
 
-    // Notify immediately so browsers see new servers (even if still connecting)
-    if (changed) {
-      this.notifyState();
-    }
+    // Cancel any pending cleanup
+    this.cancelUserCleanup(userId);
   }
 
-  getServers(): ServerStatus[] {
+  /**
+   * Disconnect all servers for a user (called after cleanup timer fires).
+   */
+  private disconnectUser(userId: string) {
+    for (const [key, conn] of this.connections) {
+      if (key.startsWith(`${userId}:`)) {
+        conn.disconnect();
+        this.connections.delete(key);
+      }
+    }
+    this.userCallbacks.delete(userId);
+  }
+
+  /**
+   * Get server statuses for a specific user.
+   */
+  getServersForUser(userId: string): ServerStatus[] {
     const servers: ServerStatus[] = [];
-    for (const [id, conn] of this.connections) {
-      servers.push({
-        id,
-        name: conn.config.name,
-        host: conn.config.host,
-        port: conn.config.port,
-        online: conn.online,
-        hostname: conn.hostname,
-        os: conn.os,
-        dirs: conn.dirs,
-        sessions: conn.sessions,
-      });
+    for (const [key, conn] of this.connections) {
+      if (key.startsWith(`${userId}:`)) {
+        servers.push({
+          id: conn.config.id,
+          name: conn.config.name,
+          host: conn.config.host,
+          port: conn.config.port,
+          online: conn.online,
+          hostname: conn.hostname,
+          os: conn.os,
+          dirs: conn.dirs,
+          sessions: conn.sessions,
+        });
+      }
     }
     return servers;
   }
 
-  getConnection(serverId: string): AgentConnection | undefined {
-    return this.connections.get(serverId);
+  getConnection(userId: string, serverId: string): AgentConnection | undefined {
+    return this.connections.get(connKey(userId, serverId));
   }
 
-  onStateChange(cb: StateCallback) {
-    this.stateCallbacks.push(cb);
+  /**
+   * Subscribe to state changes for a specific user.
+   */
+  onUserStateChange(userId: string, cb: StateCallback): () => void {
+    const cbs = this.userCallbacks.get(userId) || [];
+    cbs.push(cb);
+    this.userCallbacks.set(userId, cbs);
     return () => {
-      this.stateCallbacks = this.stateCallbacks.filter((c) => c !== cb);
+      const arr = this.userCallbacks.get(userId);
+      if (arr) {
+        this.userCallbacks.set(
+          userId,
+          arr.filter((c) => c !== cb)
+        );
+      }
     };
   }
 
-  private notifyState() {
-    const servers = this.getServers();
-    for (const cb of this.stateCallbacks) {
+  private notifyUser(userId: string) {
+    const servers = this.getServersForUser(userId);
+    const cbs = this.userCallbacks.get(userId) || [];
+    for (const cb of cbs) {
       cb(servers);
     }
   }
 
-  createSession(serverId: string, workdir: string, name: string, dangerouslySkipPermissions?: boolean) {
-    const conn = this.connections.get(serverId);
-    if (!conn) return;
-    conn.send({ type: "create_session", workdir, name, dangerously_skip_permissions: dangerouslySkipPermissions || false });
+  /**
+   * Track WebSocket connections per user for lazy cleanup.
+   */
+  trackUserConnect(userId: string) {
+    this.userWsCount.set(userId, (this.userWsCount.get(userId) || 0) + 1);
+    this.cancelUserCleanup(userId);
   }
 
-  killSession(serverId: string, sessionId: string) {
-    const conn = this.connections.get(serverId);
+  trackUserDisconnect(userId: string) {
+    const count = (this.userWsCount.get(userId) || 1) - 1;
+    this.userWsCount.set(userId, count);
+    if (count <= 0) {
+      this.userWsCount.set(userId, 0);
+      this.scheduleUserCleanup(userId);
+    }
+  }
+
+  private scheduleUserCleanup(userId: string) {
+    if (this.cleanupTimers.has(userId)) return;
+    const timer = setTimeout(() => {
+      this.cleanupTimers.delete(userId);
+      // Double-check no active connections
+      if ((this.userWsCount.get(userId) || 0) <= 0) {
+        console.log(`[cleanup] Disconnecting idle user ${userId}`);
+        this.disconnectUser(userId);
+      }
+    }, CLEANUP_DELAY_MS);
+    this.cleanupTimers.set(userId, timer);
+  }
+
+  cancelUserCleanup(userId: string) {
+    const timer = this.cleanupTimers.get(userId);
+    if (timer) {
+      clearTimeout(timer);
+      this.cleanupTimers.delete(userId);
+    }
+  }
+
+  createSession(
+    userId: string,
+    serverId: string,
+    workdir: string,
+    name: string,
+    dangerouslySkipPermissions?: boolean
+  ) {
+    const conn = this.connections.get(connKey(userId, serverId));
+    if (!conn) return;
+    conn.send({
+      type: "create_session",
+      workdir,
+      name,
+      dangerously_skip_permissions: dangerouslySkipPermissions || false,
+    });
+  }
+
+  killSession(userId: string, serverId: string, sessionId: string) {
+    const conn = this.connections.get(connKey(userId, serverId));
     if (!conn) return;
     conn.send({ type: "kill_session", session_id: sessionId });
   }
 
-  clearDeadSessions(serverId: string) {
-    const conn = this.connections.get(serverId);
+  clearDeadSessions(userId: string, serverId: string) {
+    const conn = this.connections.get(connKey(userId, serverId));
     if (!conn) return;
+
+    conn.sessions = conn.sessions.filter((s) => s.state !== "dead");
+    this.notifyUser(userId);
     conn.send({ type: "clear_dead_sessions" });
   }
 }
 
-// Singleton
-export const agentManager = new AgentManager();
+// Singleton shared across module boundaries
+const GLOBAL_KEY = Symbol.for("agentManager");
+const g = globalThis as Record<symbol, unknown>;
+if (!g[GLOBAL_KEY]) {
+  g[GLOBAL_KEY] = new AgentManager();
+}
+export const agentManager = g[GLOBAL_KEY] as AgentManager;

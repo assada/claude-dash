@@ -11,6 +11,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN npx prisma generate
 RUN npx next build
 
 # Production
@@ -29,12 +30,8 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server.ts ./
 COPY --from=builder /app/src/lib ./src/lib
+COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./
-
-# Config volume
-RUN mkdir -p /app/config
-VOLUME /app/config
-ENV DASHBOARD_CONFIG=/app/config/config.yaml
 
 EXPOSE 3000
 

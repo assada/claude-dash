@@ -151,23 +151,7 @@ export default function Home() {
       </header>
 
       {/* Panels (fixed position, float on viewport) */}
-      {servers.length === 0 ? (
-        <div className="fixed inset-0 flex items-center justify-center z-10 pointer-events-none">
-          <div className="text-center text-text-faint">
-            <Terminal size={48} className="mx-auto mb-4 opacity-30" />
-            <p className="text-[17px] font-medium mb-2">
-              No servers configured
-            </p>
-            <p className="text-[13px] text-text-muted pointer-events-auto">
-              Go to{" "}
-              <a href="/settings" className="text-accent hover:underline">
-                Settings
-              </a>{" "}
-              to add agent servers
-            </p>
-          </div>
-        </div>
-      ) : (
+      {servers.length === 0 ? null : (
         servers.map((server) => {
             const pos = positions[server.id];
             if (!pos) return null;
