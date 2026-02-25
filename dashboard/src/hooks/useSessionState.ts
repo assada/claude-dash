@@ -145,26 +145,26 @@ export function useSessionState() {
   );
 
   const clearArchive = useCallback(() => {
+    // Collect server IDs before clearing
+    const serverIds = new Set<string>();
+    for (const s of archivedSessions) {
+      serverIds.add(s.serverId);
+    }
+
+    // Clear locally immediately
+    archivedIdsRef.current.clear();
+    setArchivedSessions([]);
+
+    // Tell each agent server to clean up scrollback files
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      // Collect unique server IDs from archived sessions
-      const serverIds = new Set<string>();
-      setArchivedSessions((prev) => {
-        for (const s of prev) {
-          serverIds.add(s.serverId);
-        }
-        return prev;
-      });
-      // Send clear_dead_sessions to each server
       for (const serverId of serverIds) {
         ws.send(
           JSON.stringify({ type: "clear_dead_sessions", serverId })
         );
       }
     }
-    // Agent will broadcast updated state without dead sessions,
-    // processServers will clean up archivedSessions automatically
-  }, []);
+  }, [archivedSessions]);
 
   return {
     servers,

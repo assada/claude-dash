@@ -1,16 +1,40 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dashboard}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashboard"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   dashboard:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    volumes:
-      - ./config:/app/config
     environment:
       - NODE_ENV=production
-      - DASHBOARD_CONFIG=/app/config/config.yaml
-      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-admin}
+      - DATABASE_URL=postgresql://dashboard:${POSTGRES_PASSWORD:-dashboard}@postgres:5432/dashboard
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     # Use host network to access Tailscale
     # network_mode: host
+
+volumes:
+  pgdata:

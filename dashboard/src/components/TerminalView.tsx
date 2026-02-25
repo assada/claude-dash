@@ -52,126 +52,139 @@ export function TerminalView({
   const initialStateRef = useRef(sessionState);
 
   useEffect(() => {
-    if (!terminalRef.current) return;
+    const el = terminalRef.current;
+    if (!el) return;
 
-    const term = new Terminal({
-      cursorBlink: true,
-      fontSize: 14,
-      fontFamily: "JetBrains Mono NF, JetBrains Mono, Menlo, Consolas, monospace",
-      theme: {
-        background: "#0d1117",
-        foreground: "#e6edf3",
-        cursor: "#58a6ff",
-        selectionBackground: "#264f78",
-        black: "#0d1117",
-        red: "#ff7b72",
-        green: "#3fb950",
-        yellow: "#d29922",
-        blue: "#58a6ff",
-        magenta: "#bc8cff",
-        cyan: "#39d353",
-        white: "#e6edf3",
-        brightBlack: "#484f58",
-        brightRed: "#ffa198",
-        brightGreen: "#56d364",
-        brightYellow: "#e3b341",
-        brightBlue: "#79c0ff",
-        brightMagenta: "#d2a8ff",
-        brightCyan: "#56d364",
-        brightWhite: "#f0f6fc",
-      },
-      scrollback: 50000,
-      allowProposedApi: true,
-    });
+    let term: Terminal | null = null;
+    let fitAddon: FitAddon | null = null;
+    let disposed = false;
 
-    const fitAddon = new FitAddon();
-    const searchAddon = new SearchAddon();
+    const handleResize = () => { fitAddon?.fit(); };
 
-    term.loadAddon(fitAddon);
-    term.loadAddon(searchAddon);
+    // Wait for layout so the container has real dimensions.
+    // xterm.js requires the element to have dimensions when open() is called.
+    const rafId = requestAnimationFrame(() => {
+      if (disposed) return;
 
-    term.open(terminalRef.current);
+      term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: "JetBrains Mono NF, JetBrains Mono, Menlo, Consolas, monospace",
+        theme: {
+          background: "#0d1117",
+          foreground: "#e6edf3",
+          cursor: "#58a6ff",
+          selectionBackground: "#264f78",
+          black: "#0d1117",
+          red: "#ff7b72",
+          green: "#3fb950",
+          yellow: "#d29922",
+          blue: "#58a6ff",
+          magenta: "#bc8cff",
+          cyan: "#39d353",
+          white: "#e6edf3",
+          brightBlack: "#484f58",
+          brightRed: "#ffa198",
+          brightGreen: "#56d364",
+          brightYellow: "#e3b341",
+          brightBlue: "#79c0ff",
+          brightMagenta: "#d2a8ff",
+          brightCyan: "#56d364",
+          brightWhite: "#f0f6fc",
+        },
+        scrollback: 50000,
+        allowProposedApi: true,
+      });
 
-    requestAnimationFrame(() => {
+      fitAddon = new FitAddon();
+      const searchAddon = new SearchAddon();
+      term.loadAddon(fitAddon);
+      term.loadAddon(searchAddon);
+
+      term.open(el);
       fitAddon.fit();
       term.focus();
-    });
 
-    termRef.current = term;
-    fitRef.current = fitAddon;
+      termRef.current = term;
+      fitRef.current = fitAddon;
 
-    term.onData((data) => {
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "terminal_input", data: encodeBase64(data) }));
-      }
-    });
-
-    term.onBinary((data) => {
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "terminal_input", data: btoa(data) }));
-      }
-    });
-
-    const handleResize = () => { fitAddon.fit(); };
-
-    term.onResize(({ cols, rows }) => {
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "terminal_resize", cols, rows }));
-      }
-    });
-
-    window.addEventListener("resize", handleResize);
-
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setConnected(true);
-      const isDead = initialStateRef.current === "dead";
-      if (isDead) {
-        ws.send(JSON.stringify({ type: "get_scrollback", serverId, sessionId }));
-      } else {
-        const cols = term.cols || 200;
-        const rows = term.rows || 50;
-        ws.send(JSON.stringify({ type: "terminal_attach", serverId, sessionId, cols, rows }));
-        attachedRef.current = true;
-      }
-    };
-
-    ws.onmessage = (event) => {
-      let msg;
-      try { msg = JSON.parse(event.data); } catch { return; }
-
-      if (msg.type === "scrollback" && msg.data) {
-        const bytes = decodeBase64(msg.data);
-        term.write(new TextDecoder().decode(bytes));
-        if (initialStateRef.current === "dead") {
-          term.write("\r\n\x1b[1;31m--- Session ended ---\x1b[0m\r\n");
+      term.onData((data) => {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "terminal_input", data: encodeBase64(data) }));
         }
-      }
-      if (msg.type === "terminal_output" && msg.data) {
-        term.write(decodeBase64(msg.data));
-      }
-      if (msg.type === "error" && msg.message) {
-        term.write(`\r\n\x1b[1;31mError: ${msg.message}\x1b[0m\r\n`);
-      }
-    };
+      });
 
-    ws.onclose = () => { setConnected(false); attachedRef.current = false; };
-    ws.onerror = () => { setConnected(false); };
+      term.onBinary((data) => {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "terminal_input", data: btoa(data) }));
+        }
+      });
+
+      term.onResize(({ cols, rows }) => {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "terminal_resize", cols, rows }));
+        }
+      });
+
+      window.addEventListener("resize", handleResize);
+
+      // Connect WS after terminal is fully initialized
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      wsRef.current = ws;
+
+      const t = term; // capture for closure
+
+      ws.onopen = () => {
+        setConnected(true);
+        const isDead = initialStateRef.current === "dead";
+        if (isDead) {
+          ws.send(JSON.stringify({ type: "get_scrollback", serverId, sessionId }));
+        } else {
+          const cols = t.cols || 200;
+          const rows = t.rows || 50;
+          ws.send(JSON.stringify({ type: "terminal_attach", serverId, sessionId, cols, rows }));
+          attachedRef.current = true;
+        }
+      };
+
+      ws.onmessage = (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        if (msg.type === "scrollback" && msg.data) {
+          const bytes = decodeBase64(msg.data);
+          t.write(new TextDecoder().decode(bytes));
+          if (initialStateRef.current === "dead") {
+            t.write("\r\n\x1b[1;31m--- Session ended ---\x1b[0m\r\n");
+          }
+        }
+        if (msg.type === "terminal_output" && msg.data) {
+          t.write(decodeBase64(msg.data));
+        }
+        if (msg.type === "error" && msg.message) {
+          t.write(`\r\n\x1b[1;31mError: ${msg.message}\x1b[0m\r\n`);
+        }
+      };
+
+      ws.onclose = () => { setConnected(false); attachedRef.current = false; };
+      ws.onerror = () => { setConnected(false); };
+    });
 
     return () => {
+      disposed = true;
+      cancelAnimationFrame(rafId);
       window.removeEventListener("resize", handleResize);
-      if (ws.readyState === WebSocket.OPEN) {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "terminal_detach" }));
         ws.close();
       }
       attachedRef.current = false;
-      term.dispose();
+      term?.dispose();
       termRef.current = null;
       fitRef.current = null;
       wsRef.current = null;

@@ -26,7 +26,11 @@ export default function SettingsPage() {
     } catch {}
   };
 
-  useEffect(() => { fetchServers(); }, []);
+  useEffect(() => {
+    fetchServers();
+    const interval = setInterval(fetchServers, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSave = async () => {
     if (!editingServer) return;
@@ -131,7 +135,7 @@ export default function SettingsPage() {
             <span className="block text-[15px] font-semibold text-text-secondary mb-4">
               {isNew ? "Add Server" : "Edit Server"}
             </span>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4" data-1p-ignore data-lpignore="true">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">ID</label>
@@ -141,6 +145,8 @@ export default function SettingsPage() {
                     onChange={(e) => setEditingServer({ ...editingServer, id: e.target.value })}
                     disabled={!isNew}
                     placeholder="my-server"
+                    autoComplete="off"
+                    data-1p-ignore
                     className={`input ${!isNew ? "opacity-50" : ""}`}
                   />
                 </div>
@@ -151,6 +157,8 @@ export default function SettingsPage() {
                     value={editingServer.name}
                     onChange={(e) => setEditingServer({ ...editingServer, name: e.target.value })}
                     placeholder="My Server"
+                    autoComplete="off"
+                    data-1p-ignore
                     className="input"
                   />
                 </div>
@@ -163,6 +171,8 @@ export default function SettingsPage() {
                     value={editingServer.host}
                     onChange={(e) => setEditingServer({ ...editingServer, host: e.target.value })}
                     placeholder="100.64.1.10"
+                    autoComplete="off"
+                    data-1p-ignore
                     className="input"
                   />
                 </div>
@@ -172,6 +182,8 @@ export default function SettingsPage() {
                     type="number"
                     value={editingServer.port}
                     onChange={(e) => setEditingServer({ ...editingServer, port: parseInt(e.target.value) || 9100 })}
+                    autoComplete="off"
+                    data-1p-ignore
                     className="input"
                   />
                 </div>
@@ -179,11 +191,14 @@ export default function SettingsPage() {
               <div>
                 <label className="label">Auth Token</label>
                 <input
-                  type="password"
+                  type="text"
                   value={editingServer.token}
                   onChange={(e) => setEditingServer({ ...editingServer, token: e.target.value })}
                   placeholder="Leave blank to keep current"
+                  autoComplete="off"
+                  data-1p-ignore
                   className="input"
+                  style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
                 />
               </div>
               <div className="flex justify-end gap-2 pt-1">

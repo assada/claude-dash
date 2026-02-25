@@ -16,7 +16,7 @@ const PUSH_STRENGTH = 25;
 const SPRING_STIFFNESS = 0.08;
 const DAMPING = 0.75;
 const BRIGHTNESS_RADIUS = 110;
-const BASE_OPACITY = 0.12;
+const BASE_OPACITY = 0.18;
 const BRIGHTNESS_BOOST = 0.8;
 
 interface Dot {
