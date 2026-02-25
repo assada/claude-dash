@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"sort"
 	"sync"
 	"time"
 )
@@ -65,6 +66,9 @@ func (p *Poller) GetSessions() []*SessionInfo {
 		cp := *s
 		result = append(result, &cp)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 	return result
 }
 
@@ -144,6 +148,9 @@ func (p *Poller) poll() {
 			cp := *s
 			sessions = append(sessions, &cp)
 		}
+		sort.Slice(sessions, func(i, j int) bool {
+			return sessions[i].Name < sessions[j].Name
+		})
 		p.onChange(sessions)
 	}
 }

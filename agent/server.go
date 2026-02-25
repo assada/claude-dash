@@ -127,6 +127,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				home, _ := os.UserHomeDir()
 				workdir = home
 			}
+			// Expand ~ to home directory (exec.Command doesn't do shell expansion)
+			if len(workdir) > 0 && workdir[0] == '~' {
+				home, _ := os.UserHomeDir()
+				workdir = home + workdir[1:]
+			}
 			name := msg.Name
 			if name == "" {
 				name = "session"
