@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Plus, Settings, Terminal } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
 import { ServerPanel } from "@/components/ServerPanel";
 import { NewSessionModal } from "@/components/NewSessionModal";
 import { TerminalView } from "@/components/TerminalView";
@@ -9,6 +9,7 @@ import { ArchiveStack } from "@/components/ArchiveStack";
 import { ArchiveDrawer } from "@/components/ArchiveDrawer";
 import { useSessionState } from "@/hooks/useSessionState";
 import { useNotification } from "@/hooks/useNotification";
+import { usePanelPositions } from "@/hooks/usePanelPositions";
 
 export default function Home() {
   const {
@@ -29,7 +30,18 @@ export default function Home() {
     serverName: string;
   } | null>(null);
 
+  // Z-index management: track order of panel focus
+  const [zOrder, setZOrder] = useState<string[]>([]);
+
+  const serverIds = useMemo(() => servers.map((s) => s.id), [servers]);
+  const { positions, updatePosition, arrangeAll } =
+    usePanelPositions(serverIds);
+
   useNotification(servers);
+
+  const bringToFront = useCallback((id: string) => {
+    setZOrder((prev) => [...prev.filter((z) => z !== id), id]);
+  }, []);
 
   const handleOpenTerminal = useCallback(
     (serverId: string, sessionId: string) => {
@@ -80,6 +92,12 @@ export default function Home() {
     );
   }
 
+  // Calculate canvas height to ensure scrolling works
+  const canvasHeight = Math.max(
+    ...Object.values(positions).map((p) => p.y + 400),
+    600
+  );
+
   return (
     <div className="min-h-screen bg-surface-0 dot-grid">
       <div className="noise-overlay" />
@@ -101,6 +119,15 @@ export default function Home() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            {servers.length > 0 && (
+              <button
+                onClick={arrangeAll}
+                className="btn-skin flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium !text-text-muted"
+                title="Arrange panels"
+              >
+                <LayoutGrid size={13} /> Arrange
+              </button>
+            )}
             <button
               onClick={() => {
                 setDefaultNewServerId(undefined);
@@ -117,12 +144,17 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main — panels laid out in a flex wrap */}
-      <main className="px-8 py-8 relative z-10">
+      {/* Canvas — relative container for absolute panels */}
+      <main
+        className="relative z-10"
+        style={{ minHeight: canvasHeight }}
+      >
         {servers.length === 0 ? (
           <div className="text-center py-20 text-text-faint">
             <Terminal size={48} className="mx-auto mb-4 opacity-30" />
-            <p className="text-[17px] font-medium mb-2">No servers configured</p>
+            <p className="text-[17px] font-medium mb-2">
+              No servers configured
+            </p>
             <p className="text-[13px] text-text-muted">
               Go to{" "}
               <a href="/settings" className="text-accent hover:underline">
@@ -132,11 +164,17 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-6">
-            {servers.map((server) => (
+          servers.map((server) => {
+            const pos = positions[server.id];
+            if (!pos) return null;
+            return (
               <ServerPanel
                 key={server.id}
                 server={server}
+                position={pos}
+                onPositionChange={(p) => updatePosition(server.id, p)}
+                onBringToFront={() => bringToFront(server.id)}
+                zIndex={zOrder.indexOf(server.id) + 1}
                 onOpenTerminal={(sessionId) =>
                   handleOpenTerminal(server.id, sessionId)
                 }
@@ -148,12 +186,15 @@ export default function Home() {
                   setShowNewSession(true);
                 }}
               />
-            ))}
-          </div>
+            );
+          })
         )}
       </main>
 
-      <ArchiveStack count={archiveCount} onClick={() => setArchiveOpen(true)} />
+      <ArchiveStack
+        count={archiveCount}
+        onClick={() => setArchiveOpen(true)}
+      />
 
       <ArchiveDrawer
         open={archiveOpen}

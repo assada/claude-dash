@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   GripVertical,
   ChevronUp,
@@ -11,12 +11,11 @@ import {
   Loader2,
   CircleCheck,
   AlertCircle,
-  Terminal,
-  FolderOpen,
   Trash2,
 } from "lucide-react";
 import { StatusIndicator } from "./StatusIndicator";
 import type { ServerStatus, SessionInfo, SessionState } from "@/lib/types";
+import type { PanelPosition } from "@/hooks/usePanelPositions";
 
 function timeSince(ts: number): string {
   const seconds = Math.floor((Date.now() - ts) / 1000);
@@ -73,15 +72,7 @@ function SessionRow({
   const isWorking = session.state === "working";
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{
-        opacity: { duration: 0.15 },
-        y: { type: "spring", stiffness: 400, damping: 25 },
-      }}
+    <div
       onClick={onOpen}
       className={`group flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors rounded-[5px] ${
         isAttention
@@ -89,12 +80,10 @@ function SessionRow({
           : "hover:bg-[rgba(64,64,64,0.3)]"
       } ${isDead ? "opacity-40" : ""}`}
     >
-      {/* Status icon */}
       <div className="shrink-0 w-5 flex items-center justify-center">
         {stateIcon(session.state)}
       </div>
 
-      {/* Name + workdir */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span
@@ -120,12 +109,10 @@ function SessionRow({
         )}
       </div>
 
-      {/* Time */}
       <span className="text-[11px] text-text-faint shrink-0">
         {timeSince(session.state_changed_at)}
       </span>
 
-      {/* Kill button — hover only */}
       {!isDead && (
         <button
           onClick={(e) => {
@@ -138,24 +125,34 @@ function SessionRow({
           <Trash2 size={11} />
         </button>
       )}
-    </motion.div>
+    </div>
   );
 }
 
 export function ServerPanel({
   server,
+  position,
+  onPositionChange,
   onOpenTerminal,
   onKillSession,
   onNewSession,
+  onBringToFront,
+  zIndex,
 }: {
   server: ServerStatus;
+  position: PanelPosition;
+  onPositionChange: (pos: PanelPosition) => void;
   onOpenTerminal: (sessionId: string) => void;
   onKillSession: (sessionId: string) => void;
   onNewSession: () => void;
+  onBringToFront: () => void;
+  zIndex: number;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [dragging, setDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
   const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState<number | "auto">("auto");
+  const [contentHeight, setContentHeight] = useState(0);
 
   const attentionCount = server.sessions.filter(
     (s) => s.state === "needs_attention"
@@ -164,51 +161,94 @@ export function ServerPanel({
     (s) => s.state !== "dead"
   ).length;
 
-  // Measure content height for spring animation
   useEffect(() => {
     if (contentRef.current) {
       setContentHeight(contentRef.current.scrollHeight);
     }
-  }, [server.sessions.length, expanded]);
+  }, [server.sessions.length]);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      // Only drag from grip area (left mouse / touch)
+      if (e.button !== 0) return;
+      e.preventDefault();
+      setDragging(true);
+      onBringToFront();
+      dragOffset.current = {
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [position.x, position.y, onBringToFront]
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging) return;
+      onPositionChange({
+        x: e.clientX - dragOffset.current.x,
+        y: e.clientY - dragOffset.current.y,
+      });
+    },
+    [dragging, onPositionChange]
+  );
+
+  const onPointerUp = useCallback(() => {
+    setDragging(false);
+  }, []);
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.95, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{
-        opacity: { duration: 0.15 },
-        scale: { type: "spring", stiffness: 400, damping: 25 },
-        y: { type: "spring", stiffness: 400, damping: 25 },
+      animate={{ left: position.x, top: position.y }}
+      transition={
+        dragging
+          ? { duration: 0 }
+          : {
+              left: { type: "spring", stiffness: 400, damping: 28 },
+              top: { type: "spring", stiffness: 400, damping: 28 },
+            }
+      }
+      className={`panel overflow-hidden absolute ${dragging ? "cursor-grabbing" : ""}`}
+      style={{
+        width: 320,
+        zIndex: dragging ? 999999 : zIndex,
+        boxShadow: dragging
+          ? "var(--shadow-lifted)"
+          : "var(--shadow-panel)",
       }}
-      className="panel overflow-hidden"
-      style={{ width: 320 }}
+      onPointerDown={() => onBringToFront()}
     >
-      {/* Header — always visible */}
+      {/* Header — drag handle */}
       <div
-        className="flex items-center gap-2 px-4 h-12 cursor-pointer select-none transition-colors hover:bg-[rgba(64,64,64,0.3)]"
-        onClick={() => setExpanded(!expanded)}
+        className={`flex items-center gap-2 px-4 h-12 select-none transition-colors hover:bg-[rgba(64,64,64,0.3)] ${
+          dragging ? "cursor-grabbing" : "cursor-grab"
+        }`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       >
-        <GripVertical size={14} className="text-text-faint shrink-0" />
+        <GripVertical size={14} className="text-text-faint shrink-0 pointer-events-none" />
 
-        <span className="text-[13px] font-medium text-text-secondary truncate flex-1">
+        <span
+          className="text-[13px] font-medium text-text-secondary truncate flex-1 pointer-events-none"
+        >
           {server.name}
         </span>
 
-        {/* Status badges */}
         {attentionCount > 0 && (
-          <span className="animate-shimmer px-1.5 py-0.5 rounded bg-warn/20 text-warn text-[10px] font-semibold">
+          <span className="animate-shimmer px-1.5 py-0.5 rounded bg-warn/20 text-warn text-[10px] font-semibold pointer-events-none">
             {attentionCount}
           </span>
         )}
 
         {server.online ? (
-          <span className="flex items-center gap-1 text-[10px] text-ok">
+          <span className="flex items-center gap-1 text-[10px] text-ok pointer-events-none">
             <Wifi size={10} />
             <span>{activeCount}</span>
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-[10px] text-warn">
+          <span className="flex items-center gap-1 text-[10px] text-warn pointer-events-none">
             <WifiOff size={10} />
           </span>
         )}
@@ -224,19 +264,26 @@ export function ServerPanel({
           <Plus size={13} />
         </button>
 
-        <motion.div
-          animate={{ rotate: expanded ? 180 : 0 }}
-          transition={{ duration: 0.3, ease: "easeOut" }}
-          className="shrink-0"
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+          }}
+          className="btn-ghost p-1 shrink-0"
         >
-          <ChevronUp size={13} className="text-text-faint" />
-        </motion.div>
+          <motion.div
+            animate={{ rotate: expanded ? 180 : 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+          >
+            <ChevronUp size={13} className="text-text-faint" />
+          </motion.div>
+        </button>
       </div>
 
       {/* Session list — collapsible */}
       <motion.div
         animate={{
-          height: expanded ? contentHeight : 0,
+          height: expanded ? contentHeight || "auto" : 0,
           opacity: expanded ? 1 : 0,
         }}
         transition={{
@@ -248,16 +295,14 @@ export function ServerPanel({
         <div ref={contentRef} className="pb-2 pt-1">
           {server.online ? (
             <>
-              <AnimatePresence mode="popLayout">
-                {server.sessions.map((session) => (
-                  <SessionRow
-                    key={session.id}
-                    session={session}
-                    onOpen={() => onOpenTerminal(session.id)}
-                    onKill={() => onKillSession(session.id)}
-                  />
-                ))}
-              </AnimatePresence>
+              {server.sessions.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  onOpen={() => onOpenTerminal(session.id)}
+                  onKill={() => onKillSession(session.id)}
+                />
+              ))}
               {server.sessions.length === 0 && (
                 <div className="px-4 py-3 text-[11px] text-text-faint italic">
                   No sessions
@@ -270,11 +315,6 @@ export function ServerPanel({
             </div>
           )}
         </div>
-
-        {/* Scroll fade */}
-        {server.sessions.length > 6 && expanded && (
-          <div className="scroll-fade-bottom" />
-        )}
       </motion.div>
     </motion.div>
   );
