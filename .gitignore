@@ -1,0 +1,13 @@
+# Agent binaries
+agent/ccdash-agent
+agent/ccdash-agent-*
+
+# Dashboard
+dashboard/node_modules/
+dashboard/.next/
+
+# Config with secrets
+config/config.yaml
+
+# OS
+.DS_Store
