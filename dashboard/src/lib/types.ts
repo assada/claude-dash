@@ -39,6 +39,7 @@ export interface ServerStatus {
   online: boolean;
   hostname?: string;
   os?: string;
+  agentVersion?: string;
   dirs?: string[];
   sessions: SessionInfo[];
   metrics?: ServerMetrics;
@@ -61,6 +62,7 @@ export interface AgentMessage {
   data?: string;
   hostname?: string;
   os?: string;
+  version?: string;
   dirs?: string[];
   message?: string;
 

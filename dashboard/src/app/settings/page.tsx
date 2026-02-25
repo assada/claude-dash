@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
 
 const INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/assada/claude-dash/master/agent/install.sh | bash";
+const EXPECTED_VERSION = process.env.NEXT_PUBLIC_AGENT_VERSION || "dev";
 
 function CopyCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
@@ -54,6 +55,20 @@ export default function SettingsPage() {
   const [editingServer, setEditingServer] = useState<ServerForm | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [updatingServer, setUpdatingServer] = useState<string | null>(null);
+
+  const handleUpdate = async (serverId: string) => {
+    setUpdatingServer(serverId);
+    try {
+      await fetch("/api/servers/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serverId }),
+      });
+    } catch {}
+    // The agent will restart — wait a bit then clear
+    setTimeout(() => setUpdatingServer(null), 8000);
+  };
 
   const fetchServers = async () => {
     try {
@@ -122,43 +137,68 @@ export default function SettingsPage() {
 
         {/* Server list */}
         <div className="flex flex-col gap-2 mb-6">
-          {servers.map((server) => (
-            <div key={server.id} className="panel flex items-center gap-3 p-4">
-              <div className="flex-1">
-                <div className="text-[14px] font-medium text-text-primary">{server.name}</div>
-                <div className="text-[11px] text-text-faint mt-0.5">
-                  {server.host}:{server.port}
+          {servers.map((server) => {
+            const outdated =
+              server.online &&
+              server.agentVersion &&
+              EXPECTED_VERSION !== "dev" &&
+              server.agentVersion !== "dev" &&
+              server.agentVersion !== EXPECTED_VERSION;
+
+            return (
+              <div key={server.id} className="panel flex items-center gap-3 p-4">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-medium text-text-primary">{server.name}</div>
+                  <div className="text-[11px] text-text-faint mt-0.5 flex items-center gap-2">
+                    <span>{server.host}:{server.port}</span>
+                    {server.online && server.agentVersion && (
+                      <span className={outdated ? "text-orange-500" : ""}>
+                        {server.agentVersion}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {server.online ? (
+                  <span className="flex items-center gap-1 text-[11px] text-ok shrink-0">
+                    <Wifi size={11} /> online
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[11px] text-warn shrink-0">
+                    <WifiOff size={11} /> offline
+                  </span>
+                )}
+                {outdated && (
+                  <button
+                    onClick={() => handleUpdate(server.id)}
+                    disabled={updatingServer === server.id}
+                    className="btn-skin flex items-center gap-1 px-2.5 py-1 text-[11px] !text-orange-500 shrink-0"
+                    title={`Update from ${server.agentVersion} to ${EXPECTED_VERSION}`}
+                  >
+                    <Download size={11} />
+                    {updatingServer === server.id ? "Updating..." : "Update"}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setEditingServer({
+                      id: server.id, name: server.name,
+                      host: server.host, port: server.port, token: "",
+                    });
+                    setIsNew(false);
+                  }}
+                  className="btn-skin px-2.5 py-1 text-[11px] !text-text-muted shrink-0"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(server.id)}
+                  className="btn-danger p-1.5 shrink-0"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
-              {server.online ? (
-                <span className="flex items-center gap-1 text-[11px] text-ok">
-                  <Wifi size={11} /> online
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-[11px] text-warn">
-                  <WifiOff size={11} /> offline
-                </span>
-              )}
-              <button
-                onClick={() => {
-                  setEditingServer({
-                    id: server.id, name: server.name,
-                    host: server.host, port: server.port, token: "",
-                  });
-                  setIsNew(false);
-                }}
-                className="btn-skin px-2.5 py-1 text-[11px] !text-text-muted"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(server.id)}
-                className="btn-danger p-1.5"
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           {servers.length === 0 && (
             <div className="py-4 text-[13px] text-text-faint italic">
               No servers configured. Add one to get started.
