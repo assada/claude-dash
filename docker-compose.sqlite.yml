@@ -7,11 +7,10 @@ services:
         DATABASE_PROVIDER: sqlite
     ports:
       - "3000:3000"
+    env_file: .env
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/dashboard.db
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-secret-change-me}
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - ENABLE_GITHUB=false
       - ENABLE_GUEST=true
     volumes:

@@ -36,14 +36,14 @@ Real-time web dashboard for monitoring and managing multiple **Claude Code** ses
 
 ```
 ┌─────────────┐     WebSocket      ┌───────────────────┐     WebSocket      ┌─────────────┐
-│   Browser    │◄──────────────────►│    Dashboard      │◄──────────────────►│   Agent      │
-│  (Next.js)   │   /ws (JWT auth)   │  (Node.js + Next) │  per-server conn   │  (Go binary) │
-└─────────────┘                     └───────────────────┘                     └─────────────┘
+│   Browser   │◄──────────────────►│    Dashboard      │◄──────────────────►│   Agent     │
+│  (Next.js)  │   /ws (JWT auth)   │  (Node.js + Next) │  per-server conn   │ (Go binary) │
+└─────────────┘                    └───────────────────┘                    └─────────────┘
                                            │                                        │
-                                     ┌─────┴─────┐                           ┌──────┴──────┐
-                                     │  Database  │                           │  tmux + pty │
-                                     │ PG / SQLite│                           │  scrollback │
-                                     └───────────┘                           └─────────────┘
+                                     ┌─────┴───────┐                           ┌────┴────────┐
+                                     │  Database   │                           │  tmux + pty │
+                                     │ PG / SQLite │                           │  scrollback │
+                                     └─────────────┘                           └─────────────┘
 ```
 
 | Component | Stack | Description |

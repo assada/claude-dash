@@ -22,15 +22,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    env_file: .env
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://dashboard:${POSTGRES_PASSWORD:-dashboard}@postgres:5432/dashboard
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - ENABLE_GITHUB=${ENABLE_GITHUB:-true}
-      - ENABLE_GUEST=${ENABLE_GUEST:-true}
     depends_on:
       postgres:
         condition: service_healthy
