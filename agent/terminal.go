@@ -138,3 +138,4 @@ func (t *TerminalSession) IsAttached() bool {
 	defer t.mu.Unlock()
 	return t.ptyFile != nil && !t.closed
 }
+
