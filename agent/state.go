@@ -36,10 +36,10 @@ func init() {
 
 	workingPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]`),
-		regexp.MustCompile(`(?i)\bthinking\b|\breasoning\b`),
-		regexp.MustCompile(`(?i)\breading\b|\bwriting\b|\bsearching\b|\brunning\b|\bexecuting\b`),
-		regexp.MustCompile(`(?i)^(bash|edit|multiedit|read|write|glob|grep|todoread|todowrite):`),
-		regexp.MustCompile(`(?i)\btool:|\busing tool\b`),
+		regexp.MustCompile(`(?i)^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]?\s*(thinking|reasoning)`),
+		regexp.MustCompile(`(?i)^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s*(reading|writing|searching|running|executing)`),
+		regexp.MustCompile(`(?i)^(bash|edit|multiedit|read|write|glob|grep|todoread|todowrite)\s*:`),
+		regexp.MustCompile(`(?i)^\s*tool\s*:|using tool`),
 	}
 
 	pagerNeedsAttentionPatterns = []*regexp.Regexp{
