@@ -105,6 +105,15 @@ export function TerminalView({
       fitAddon.fit();
       term.focus();
 
+      // Prevent xterm from converting wheel events to arrow-key sequences
+      // when the application activates the alternate screen buffer (tmux/claude).
+      // Instead, scroll the terminal's own scrollback buffer.
+      term.attachCustomWheelEventHandler((e: WheelEvent) => {
+        const lines = Math.max(1, Math.round(Math.abs(e.deltaY) / 25));
+        term!.scrollLines(e.deltaY > 0 ? lines : -lines);
+        return false;
+      });
+
       termRef.current = term;
       fitRef.current = fitAddon;
 
