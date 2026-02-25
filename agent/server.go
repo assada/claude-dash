@@ -14,6 +14,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// safeConn wraps a websocket.Conn with a mutex to prevent concurrent writes.
+type safeConn struct {
+	*websocket.Conn
+	wmu sync.Mutex
+}
+
+func (c *safeConn) safeWrite(messageType int, data []byte) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	return c.Conn.WriteMessage(messageType, data)
+}
+
 // Client → Agent messages
 type ClientMessage struct {
 	Type                       string `json:"type"`
@@ -56,7 +68,7 @@ type Server struct {
 	upgrader   websocket.Upgrader
 
 	mu          sync.Mutex
-	subscribers map[*websocket.Conn]bool
+	subscribers map[*safeConn]bool
 }
 
 func newServer(config *Config, poller *Poller, scrollback *ScrollbackManager) *Server {
@@ -64,7 +76,7 @@ func newServer(config *Config, poller *Poller, scrollback *ScrollbackManager) *S
 		config:      config,
 		poller:      poller,
 		scrollback:  scrollback,
-		subscribers: make(map[*websocket.Conn]bool),
+		subscribers: make(map[*safeConn]bool),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -95,13 +107,14 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := s.upgrader.Upgrade(w, r, nil)
+	raw, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("ws upgrade: %v", err)
 		return
 	}
-	defer conn.Close()
+	defer raw.Close()
 
+	conn := &safeConn{Conn: raw}
 	s.addSubscriber(conn)
 	defer s.removeSubscriber(conn)
 
@@ -279,7 +292,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) readPTY(conn *websocket.Conn, terminal *TerminalSession) {
+func (s *Server) readPTY(conn *safeConn, terminal *TerminalSession) {
 	// Buffer PTY output and flush at most every 16ms to reduce flickering
 	buf := make([]byte, 32*1024)
 	var accumulated []byte
@@ -349,25 +362,25 @@ func (s *Server) readPTY(conn *websocket.Conn, terminal *TerminalSession) {
 	}
 }
 
-func (s *Server) sendMessage(conn *websocket.Conn, msg ServerMessage) {
+func (s *Server) sendMessage(conn *safeConn, msg ServerMessage) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return
 	}
-	conn.WriteMessage(websocket.TextMessage, data)
+	conn.safeWrite(websocket.TextMessage, data)
 }
 
-func (s *Server) sendError(conn *websocket.Conn, message string) {
+func (s *Server) sendError(conn *safeConn, message string) {
 	s.sendMessage(conn, ServerMessage{Type: "error", Message: message})
 }
 
-func (s *Server) addSubscriber(conn *websocket.Conn) {
+func (s *Server) addSubscriber(conn *safeConn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.subscribers[conn] = true
 }
 
-func (s *Server) removeSubscriber(conn *websocket.Conn) {
+func (s *Server) removeSubscriber(conn *safeConn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.subscribers, conn)
@@ -410,20 +423,20 @@ func (s *Server) broadcastMachineInfo() {
 	}
 
 	s.mu.Lock()
-	subs := make([]*websocket.Conn, 0, len(s.subscribers))
+	subs := make([]*safeConn, 0, len(s.subscribers))
 	for conn := range s.subscribers {
 		subs = append(subs, conn)
 	}
 	s.mu.Unlock()
 
 	for _, conn := range subs {
-		conn.WriteMessage(websocket.TextMessage, data)
+		conn.safeWrite(websocket.TextMessage, data)
 	}
 }
 
 func (s *Server) broadcastSessions(sessions []*SessionInfo) {
 	s.mu.Lock()
-	subs := make([]*websocket.Conn, 0, len(s.subscribers))
+	subs := make([]*safeConn, 0, len(s.subscribers))
 	for conn := range s.subscribers {
 		subs = append(subs, conn)
 	}
@@ -436,6 +449,6 @@ func (s *Server) broadcastSessions(sessions []*SessionInfo) {
 	}
 
 	for _, conn := range subs {
-		conn.WriteMessage(websocket.TextMessage, data)
+		conn.safeWrite(websocket.TextMessage, data)
 	}
 }
