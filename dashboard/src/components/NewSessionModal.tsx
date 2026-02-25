@@ -67,7 +67,7 @@ export function NewSessionModal({
   const [name, setName] = useState("");
   const [skipPermissions, setSkipPermissions] = useState(false);
 
-  // Reset form when modal opens
+  // Reset form only when modal opens (not on every servers update)
   useEffect(() => {
     if (open) {
       setServerId(defaultServerId || servers.find((s) => s.online)?.id || servers[0]?.id || "");
@@ -75,7 +75,7 @@ export function NewSessionModal({
       setName("");
       setSkipPermissions(false);
     }
-  }, [open, defaultServerId, servers]);
+  }, [open, defaultServerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedServer = servers.find((s) => s.id === serverId);
   const dirs = selectedServer?.dirs || [];
