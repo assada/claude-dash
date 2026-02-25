@@ -40,7 +40,7 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
       >
         <div className="flex items-center gap-3 mb-6">
           <Terminal size={28} className="text-blue-500" />
-          <h1 className="text-xl font-bold text-zinc-100">Claude Dashboard</h1>
+          <h1 className="text-xl font-bold text-zinc-100">ADHD Dashboard</h1>
         </div>
 
         <div className="mb-4">
