@@ -103,6 +103,7 @@ export function DotGridCanvas({
       ctx.clearRect(0, 0, w, h);
 
       // Gather panels in viewport coords
+      // Panel rects are stored in page-absolute coords (via getBoundingClientRect + scrollY)
       const panels: PanelRect[] = [];
       if (panelRectsRef.current) {
         for (const r of Object.values(panelRectsRef.current)) {
