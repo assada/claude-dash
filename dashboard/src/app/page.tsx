@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
 import { ServerPanel } from "@/components/ServerPanel";
+import { DotGridCanvas, type PanelRect } from "@/components/DotGridCanvas";
 import { NewSessionModal } from "@/components/NewSessionModal";
 import { TerminalView } from "@/components/TerminalView";
 import { ArchiveStack } from "@/components/ArchiveStack";
@@ -30,8 +31,8 @@ export default function Home() {
     serverName: string;
   } | null>(null);
 
-  // Z-index management: track order of panel focus
   const [zOrder, setZOrder] = useState<string[]>([]);
+  const panelRectsRef = useRef<Record<string, PanelRect>>({});
 
   const serverIds = useMemo(() => servers.map((s) => s.id), [servers]);
   const { positions, updatePosition, arrangeAll } =
@@ -42,6 +43,13 @@ export default function Home() {
   const bringToFront = useCallback((id: string) => {
     setZOrder((prev) => [...prev.filter((z) => z !== id), id]);
   }, []);
+
+  const reportRect = useCallback(
+    (id: string) => (rect: PanelRect) => {
+      panelRectsRef.current[id] = rect;
+    },
+    []
+  );
 
   const handleOpenTerminal = useCallback(
     (serverId: string, sessionId: string) => {
@@ -92,14 +100,17 @@ export default function Home() {
     );
   }
 
-  // Calculate canvas height to ensure scrolling works
   const canvasHeight = Math.max(
     ...Object.values(positions).map((p) => p.y + 400),
     600
   );
 
   return (
-    <div className="min-h-screen bg-surface-0 dot-grid">
+    <div className="min-h-screen bg-surface-0">
+      {/* Reactive dot grid canvas */}
+      <DotGridCanvas panelRectsRef={panelRectsRef} />
+
+      {/* Noise overlay */}
       <div className="noise-overlay" />
 
       {/* Top bar */}
@@ -144,11 +155,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Canvas — relative container for absolute panels */}
-      <main
-        className="relative z-10"
-        style={{ minHeight: canvasHeight }}
-      >
+      {/* Canvas for panels */}
+      <main className="relative z-10" style={{ minHeight: canvasHeight }}>
         {servers.length === 0 ? (
           <div className="text-center py-20 text-text-faint">
             <Terminal size={48} className="mx-auto mb-4 opacity-30" />
@@ -174,6 +182,7 @@ export default function Home() {
                 position={pos}
                 onPositionChange={(p) => updatePosition(server.id, p)}
                 onBringToFront={() => bringToFront(server.id)}
+                reportRect={reportRect(server.id)}
                 zIndex={zOrder.indexOf(server.id) + 1}
                 onOpenTerminal={(sessionId) =>
                   handleOpenTerminal(server.id, sessionId)

@@ -53,7 +53,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-0 dot-grid text-foreground">
+    <div className="min-h-screen bg-surface-0 text-foreground">
       <div className="noise-overlay" />
 
       <header className="sticky top-0 z-40 backdrop-blur bg-surface-0/85 border-b border-surface-1">
