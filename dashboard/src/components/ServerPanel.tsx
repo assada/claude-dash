@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GripVertical,
@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { StatusIndicator } from "./StatusIndicator";
-import type { ServerStatus, SessionInfo, SessionState } from "@/lib/types";
+import type { ServerStatus, ServerMetrics, SessionInfo, SessionState } from "@/lib/types";
 import type { PanelPosition } from "@/hooks/usePanelPositions";
 import type { PanelRect } from "./DotGridCanvas";
 
@@ -142,6 +142,116 @@ function SessionRow({
   );
 }
 
+function formatUptime(secs: number): string {
+  const days = Math.floor(secs / 86400);
+  const hours = Math.floor((secs % 86400) / 3600);
+  const minutes = Math.floor((secs % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(0)}M`;
+  return `${(bytes / 1024 ** 3).toFixed(1)}G`;
+}
+
+const GRAPH_BARS = 8;
+
+function barColor(pct: number): string {
+  if (pct < 60) return "bg-ok";
+  if (pct < 85) return "bg-yellow-500";
+  return "bg-red-500";
+}
+
+function MicroGraph({ values }: { values: number[] }) {
+  const display =
+    values.length >= GRAPH_BARS
+      ? values.slice(-GRAPH_BARS)
+      : [...Array(GRAPH_BARS - values.length).fill(-1), ...values];
+
+  return (
+    <div className="flex items-end gap-[2px] h-[14px]">
+      {display.map((v, i) => (
+        <div
+          key={i}
+          className={`w-[4px] rounded-[1px] transition-all duration-700 ease-out ${
+            v < 0 ? "bg-surface-0" : barColor(v)
+          }`}
+          style={{
+            height: v > 0 ? `${Math.max(v, 8)}%` : "2px",
+            opacity: v < 0 ? 0.3 : 1,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MetricsBar({ metrics }: { metrics: ServerMetrics }) {
+  const [history, setHistory] = useState<{
+    cpu: number[];
+    mem: number[];
+    disk: number[];
+  }>({ cpu: [], mem: [], disk: [] });
+
+  const cpuPct = Math.round(metrics.cpuPercent);
+  const memPct =
+    metrics.memTotal > 0
+      ? Math.round((metrics.memUsed / metrics.memTotal) * 100)
+      : 0;
+  const diskPct =
+    metrics.diskTotal > 0
+      ? Math.round((metrics.diskUsed / metrics.diskTotal) * 100)
+      : 0;
+
+  const snapshotKey = `${cpuPct}-${memPct}-${metrics.uptimeSecs}`;
+  const prevKeyRef = useRef("");
+
+  useEffect(() => {
+    if (snapshotKey !== prevKeyRef.current) {
+      prevKeyRef.current = snapshotKey;
+      setHistory((h) => ({
+        cpu: [...h.cpu, cpuPct].slice(-GRAPH_BARS),
+        mem: [...h.mem, memPct].slice(-GRAPH_BARS),
+        disk: [...h.disk, diskPct].slice(-GRAPH_BARS),
+      }));
+    }
+  }, [snapshotKey, cpuPct, memPct, diskPct]);
+
+  return (
+    <div className="px-4 py-2 border-t border-border-subtle grid grid-cols-2 gap-x-4 gap-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-text-faint w-7 shrink-0">CPU</span>
+        <span className="text-[10px] text-text-muted w-6 text-right shrink-0">
+          {cpuPct}%
+        </span>
+        <MicroGraph values={history.cpu} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-text-faint w-7 shrink-0">MEM</span>
+        <span className="text-[10px] text-text-muted w-6 text-right shrink-0">
+          {memPct}%
+        </span>
+        <MicroGraph values={history.mem} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-text-faint w-7 shrink-0">DISK</span>
+        <span className="text-[10px] text-text-muted w-6 text-right shrink-0">
+          {diskPct}%
+        </span>
+        <MicroGraph values={history.disk} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-text-faint w-7 shrink-0">UP</span>
+        <span className="text-[10px] text-text-muted">
+          {formatUptime(metrics.uptimeSecs)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function getViewportBounds(panelWidth: number, panelHeight: number) {
   return {
     minX: BOUNDARY_MARGIN,
@@ -164,6 +274,7 @@ function clampVelocity(vx: number, vy: number) {
 export function ServerPanel({
   server,
   position,
+  showMetrics = true,
   onPositionChange,
   onOpenTerminal,
   onKillSession,
@@ -174,6 +285,7 @@ export function ServerPanel({
 }: {
   server: ServerStatus;
   position: PanelPosition;
+  showMetrics?: boolean;
   onPositionChange: (pos: PanelPosition) => void;
   onOpenTerminal: (sessionId: string) => void;
   onKillSession: (sessionId: string) => void;
@@ -577,6 +689,9 @@ export function ServerPanel({
         className="overflow-hidden"
       >
         <div ref={contentRef} className="pb-2 pt-1">
+          {server.online && server.metrics && showMetrics && (
+            <MetricsBar metrics={server.metrics} />
+          )}
           {server.online ? (
             <>
               {server.sessions.map((session) => (
