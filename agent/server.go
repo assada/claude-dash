@@ -157,6 +157,18 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				s.sendError(conn, err.Error())
 			}
 
+		case "clear_dead_sessions":
+			// Get dead session IDs before clearing
+			sessions := s.poller.GetSessions()
+			for _, sess := range sessions {
+				if sess.State == StateDead {
+					s.scrollback.RemoveScrollback(sess.ID)
+				}
+			}
+			s.poller.ClearDeadSessions()
+			// Broadcast updated state immediately
+			s.broadcastSessions(s.poller.GetSessions())
+
 		case "attach":
 			if msg.SessionID == "" {
 				s.sendError(conn, "session_id required")

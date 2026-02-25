@@ -58,6 +58,17 @@ func (p *Poller) Stop() {
 	close(p.stopCh)
 }
 
+func (p *Poller) ClearDeadSessions() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for name, info := range p.sessions {
+		if info.State == StateDead {
+			delete(p.sessions, name)
+			delete(p.workdirs, name)
+		}
+	}
+}
+
 func (p *Poller) GetSessions() []*SessionInfo {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

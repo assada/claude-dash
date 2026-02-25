@@ -1,8 +1,73 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { X, FolderOpen } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
+
+/** Normalize a path: resolve `.` and `..` segments */
+function normalizePath(path: string): string {
+  if (!path) return path;
+
+  let prefix = "";
+  let rest = path;
+
+  if (path.startsWith("~/")) {
+    prefix = "~/";
+    rest = path.slice(2);
+  } else if (path === "~") {
+    return "~";
+  } else if (path.startsWith("/")) {
+    prefix = "/";
+    rest = path.slice(1);
+  }
+
+  const parts = rest.split("/").filter(Boolean);
+  const resolved: string[] = [];
+
+  for (const part of parts) {
+    if (part === ".") continue;
+    if (part === "..") {
+      if (resolved.length > 0) resolved.pop();
+    } else {
+      resolved.push(part);
+    }
+  }
+
+  return prefix + resolved.join("/");
+}
+
+/** Resolve a relative path against a base directory */
+function resolvePath(input: string, base: string): string {
+  if (!input) return input;
+  if (input.startsWith("/") || input.startsWith("~")) {
+    return normalizePath(input);
+  }
+  // Relative path: resolve against base
+  const combined = base.replace(/\/$/, "") + "/" + input;
+  return normalizePath(combined);
+}
+
+/**
+ * Check if path is allowed given configured dirs.
+ * Allowed = path is equal to or a child (deeper) of at least one configured dir.
+ * (i.e., you cannot go ABOVE the configured dirs)
+ */
+function isPathAllowed(path: string, dirs: string[]): boolean {
+  if (dirs.length === 0) return true;
+  const normalized = normalizePath(path);
+  if (!normalized) return false;
+
+  return dirs.some((dir) => {
+    const normalizedDir = normalizePath(dir);
+    // Exact match or path is inside the dir
+    return (
+      normalizedDir === normalized ||
+      normalized.startsWith(normalizedDir + "/") ||
+      normalizedDir === "/" ||
+      normalizedDir === "~"
+    );
+  });
+}
 
 export function NewSessionModal({
   servers,
@@ -16,13 +81,36 @@ export function NewSessionModal({
   onSubmit: (serverId: string, workdir: string, name: string) => void;
 }) {
   const [serverId, setServerId] = useState(
-    defaultServerId || servers.find((s) => s.online)?.id || servers[0]?.id || ""
+    defaultServerId ||
+      servers.find((s) => s.online)?.id ||
+      servers[0]?.id ||
+      ""
   );
   const [workdir, setWorkdir] = useState("");
   const [name, setName] = useState("");
 
   const selectedServer = servers.find((s) => s.id === serverId);
   const dirs = selectedServer?.dirs || [];
+
+  // Resolve and validate the current workdir
+  const resolved = useMemo(() => {
+    if (!workdir.trim()) return "";
+    // If relative and we have dirs, resolve against first dir
+    if (
+      dirs.length > 0 &&
+      !workdir.startsWith("/") &&
+      !workdir.startsWith("~")
+    ) {
+      return resolvePath(workdir, dirs[0]);
+    }
+    return normalizePath(workdir);
+  }, [workdir, dirs]);
+
+  const isValid = resolved
+    ? dirs.length === 0 || isPathAllowed(resolved, dirs)
+    : false;
+
+  const showError = workdir.trim() !== "" && !isValid;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
@@ -43,14 +131,18 @@ export function NewSessionModal({
             <label className="block text-sm text-zinc-400 mb-1">Server</label>
             <select
               value={serverId}
-              onChange={(e) => setServerId(e.target.value)}
+              onChange={(e) => {
+                setServerId(e.target.value);
+                setWorkdir("");
+              }}
               className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
             >
               {servers.map((s) => (
-                  <option key={s.id} value={s.id} disabled={!s.online}>
-                    {s.name}{!s.online ? " (offline)" : ""}
-                  </option>
-                ))}
+                <option key={s.id} value={s.id} disabled={!s.online}>
+                  {s.name}
+                  {!s.online ? " (offline)" : ""}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -59,27 +151,55 @@ export function NewSessionModal({
             <label className="block text-sm text-zinc-400 mb-1">
               Working Directory
             </label>
-            {dirs.length > 0 ? (
-              <select
-                value={workdir}
-                onChange={(e) => setWorkdir(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
-              >
-                <option value="">Select directory...</option>
-                {dirs.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
+            <input
+              type="text"
+              value={workdir}
+              onChange={(e) => setWorkdir(e.target.value)}
+              placeholder={
+                dirs.length > 0
+                  ? "Select below or type a path..."
+                  : "~/projects/my-app"
+              }
+              className={`w-full bg-zinc-800 border rounded px-3 py-2 text-sm text-zinc-200 ${
+                showError
+                  ? "border-red-500/60 focus:border-red-500"
+                  : "border-zinc-700 focus:border-zinc-600"
+              }`}
+            />
+
+            {/* Resolved path hint */}
+            {resolved && workdir !== resolved && !showError && (
+              <div className="mt-1 text-xs text-zinc-500 truncate">
+                {resolved}
+              </div>
+            )}
+
+            {/* Error */}
+            {showError && (
+              <div className="mt-1 text-xs text-red-400">
+                Path must be within a configured directory
+              </div>
+            )}
+
+            {/* Quick-pick dir chips */}
+            {dirs.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {dirs.map((dir) => (
+                  <button
+                    key={dir}
+                    type="button"
+                    onClick={() => setWorkdir(dir)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                      workdir === dir
+                        ? "bg-blue-600/30 border border-blue-500/50 text-blue-300"
+                        : "bg-zinc-800 border border-zinc-700 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-300"
+                    }`}
+                  >
+                    <FolderOpen size={11} />
+                    {dir}
+                  </button>
                 ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={workdir}
-                onChange={(e) => setWorkdir(e.target.value)}
-                placeholder="~/projects/my-app"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
-              />
+              </div>
             )}
           </div>
 
@@ -107,12 +227,12 @@ export function NewSessionModal({
             </button>
             <button
               onClick={() => {
-                if (serverId && workdir) {
-                  onSubmit(serverId, workdir, name || "session");
+                if (serverId && resolved && isValid) {
+                  onSubmit(serverId, resolved, name || "session");
                   onClose();
                 }
               }}
-              disabled={!serverId || !workdir}
+              disabled={!serverId || !resolved || !isValid}
               className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 text-white text-sm"
             >
               Create
