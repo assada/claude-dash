@@ -123,6 +123,15 @@ class AgentConnection {
     );
   }
 
+  forceReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectDelay = 1000;
+    this.connect();
+  }
+
   disconnect() {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -292,6 +301,9 @@ class AgentManager {
         );
         this.connections.set(key, conn);
         conn.connect();
+      } else if (!existing.online) {
+        // Existing connection is offline — force immediate reconnect
+        existing.forceReconnect();
       }
     }
 
