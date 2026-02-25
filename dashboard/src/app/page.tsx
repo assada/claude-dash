@@ -5,13 +5,17 @@ import { Plus, Settings, Terminal } from "lucide-react";
 import { ServerGroup } from "@/components/ServerGroup";
 import { NewSessionModal } from "@/components/NewSessionModal";
 import { TerminalView } from "@/components/TerminalView";
+import { ArchiveStack } from "@/components/ArchiveStack";
+import { ArchiveDrawer } from "@/components/ArchiveDrawer";
 import { useSessionState } from "@/hooks/useSessionState";
 import { useNotification } from "@/hooks/useNotification";
 
 export default function Home() {
-  const { servers, createSession, killSession } = useSessionState();
+  const { servers, archivedSessions, archiveCount, createSession, killSession, clearArchive } =
+    useSessionState();
   const [showNewSession, setShowNewSession] = useState(false);
   const [defaultNewServerId, setDefaultNewServerId] = useState<string>();
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [terminalTarget, setTerminalTarget] = useState<{
     serverId: string;
     sessionId: string;
@@ -23,18 +27,26 @@ export default function Home() {
 
   const handleOpenTerminal = useCallback(
     (serverId: string, sessionId: string) => {
+      // Look in active servers first, then archived sessions
       const server = servers.find((s) => s.id === serverId);
       const session = server?.sessions.find((s) => s.id === sessionId);
-      if (server && session) {
+      const archived = archivedSessions.find(
+        (s) => s.id === sessionId && s.serverId === serverId
+      );
+      const target = session || archived;
+      const serverName = server?.name || archived?.serverName || serverId;
+
+      if (target) {
         setTerminalTarget({
           serverId,
           sessionId,
-          sessionName: session.name,
-          serverName: server.name,
+          sessionName: target.name,
+          serverName,
         });
+        setArchiveOpen(false);
       }
     },
-    [servers]
+    [servers, archivedSessions]
   );
 
   // Count attention-needing sessions
@@ -132,6 +144,21 @@ export default function Home() {
           ))
         )}
       </main>
+
+      {/* Archive stack button */}
+      <ArchiveStack
+        count={archiveCount}
+        onClick={() => setArchiveOpen(true)}
+      />
+
+      {/* Archive drawer */}
+      <ArchiveDrawer
+        open={archiveOpen}
+        sessions={archivedSessions}
+        onClose={() => setArchiveOpen(false)}
+        onClear={clearArchive}
+        onOpenTerminal={handleOpenTerminal}
+      />
 
       {/* New session modal */}
       {showNewSession && (

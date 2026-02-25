@@ -17,6 +17,10 @@ export interface SessionInfo {
   serverName: string;
 }
 
+export interface ArchivedSession extends SessionInfo {
+  archivedAt: number;
+}
+
 export interface ServerStatus {
   id: string;
   name: string;

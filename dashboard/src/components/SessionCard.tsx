@@ -40,7 +40,7 @@ export function SessionCard({
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
+      exit={{ opacity: 0, scale: 0.6, y: 50 }}
       whileHover={{ scale: 1.02 }}
       onDoubleClick={onDoubleClick}
       className={`

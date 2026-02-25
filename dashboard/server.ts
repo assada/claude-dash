@@ -93,6 +93,12 @@ app.prepare().then(() => {
           }
           break;
 
+        case "clear_dead_sessions":
+          if (msg.serverId) {
+            agentManager.clearDeadSessions(msg.serverId);
+          }
+          break;
+
         case "terminal_attach":
           if (msg.serverId && msg.sessionId) {
             // Close existing terminal proxy

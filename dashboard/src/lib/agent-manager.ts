@@ -55,6 +55,12 @@ class AgentConnection {
     this.ws.on("close", () => {
       this.online = false;
       this.ws = null;
+      // Mark all sessions as dead so they flow into archive
+      this.sessions = this.sessions.map((s) => ({
+        ...s,
+        state: "dead" as const,
+        state_changed_at: Date.now(),
+      }));
       this.onUpdate();
       this.scheduleReconnect();
     });
@@ -62,6 +68,12 @@ class AgentConnection {
     this.ws.on("error", () => {
       this.online = false;
       this.ws = null;
+      // Mark all sessions as dead so they flow into archive
+      this.sessions = this.sessions.map((s) => ({
+        ...s,
+        state: "dead" as const,
+        state_changed_at: Date.now(),
+      }));
       this.onUpdate();
       this.scheduleReconnect();
     });
@@ -314,6 +326,12 @@ class AgentManager {
     const conn = this.connections.get(serverId);
     if (!conn) return;
     conn.send({ type: "kill_session", session_id: sessionId });
+  }
+
+  clearDeadSessions(serverId: string) {
+    const conn = this.connections.get(serverId);
+    if (!conn) return;
+    conn.send({ type: "clear_dead_sessions" });
   }
 }
 

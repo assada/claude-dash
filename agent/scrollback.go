@@ -74,6 +74,11 @@ func (sm *ScrollbackManager) dumpSession(sessionID string) {
 	}
 }
 
+func (sm *ScrollbackManager) RemoveScrollback(sessionID string) {
+	path := filepath.Join(sm.dir, sessionID+".log")
+	os.Remove(path)
+}
+
 func (sm *ScrollbackManager) GetScrollback(sessionID string) (string, error) {
 	// Try live tmux first
 	if hasTmuxSession(sessionID) {
