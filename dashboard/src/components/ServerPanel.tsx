@@ -208,21 +208,27 @@ export function ServerPanel({
     }
   }, [server.sessions.length]);
 
+  // Report actual viewport rect to dot grid (uses getBoundingClientRect for accuracy)
+  const syncRect = useCallback(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const br = panel.getBoundingClientRect();
+    reportRect({
+      x: br.left,
+      y: br.top + window.scrollY,
+      w: br.width,
+      h: br.height,
+    });
+  }, [reportRect]);
+
   // ResizeObserver: keep dot grid in sync with actual panel height
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    const ro = new ResizeObserver(() => {
-      reportRect({
-        x: posRef.current.x,
-        y: posRef.current.y,
-        w: PANEL_WIDTH,
-        h: panel.offsetHeight,
-      });
-    });
+    const ro = new ResizeObserver(syncRect);
     ro.observe(panel);
     return () => ro.disconnect();
-  }, [reportRect]);
+  }, [syncRect]);
 
   // Sync DOM with position (for Arrange or initial load)
   useEffect(() => {
@@ -240,7 +246,7 @@ export function ServerPanel({
         panel.style.left = targetX + "px";
         panel.style.top = targetY + "px";
         posRef.current = { x: targetX, y: targetY };
-        reportRect({ x: targetX, y: targetY, w: PANEL_WIDTH, h: panel.offsetHeight });
+        syncRect();
         return;
       }
 
@@ -263,7 +269,7 @@ export function ServerPanel({
         panel.style.left = cx + "px";
         panel.style.top = cy + "px";
         posRef.current = { x: cx, y: cy };
-        reportRect({ x: cx, y: cy, w: PANEL_WIDTH, h: panel.offsetHeight });
+        syncRect();
 
         if (
           Math.abs(vx) > 0.1 ||
@@ -276,7 +282,7 @@ export function ServerPanel({
           panel.style.left = targetX + "px";
           panel.style.top = targetY + "px";
           posRef.current = { x: targetX, y: targetY };
-          reportRect({ x: targetX, y: targetY, w: PANEL_WIDTH, h: panel.offsetHeight });
+          syncRect();
           animFrameRef.current = null;
         }
       };
@@ -383,7 +389,7 @@ export function ServerPanel({
         panel.style.left = x + "px";
         panel.style.top = y + "px";
         posRef.current = { x, y };
-        reportRect({ x, y, w: PANEL_WIDTH, h: panelHeight });
+        syncRect();
 
         if (Math.sqrt(vx * vx + vy * vy) > MIN_VELOCITY) {
           animFrameRef.current = requestAnimationFrame(step);
@@ -397,7 +403,7 @@ export function ServerPanel({
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = requestAnimationFrame(step);
     },
-    [onPositionChange, reportRect]
+    [onPositionChange, syncRect]
   );
 
   // --- Drag handlers ---
@@ -450,7 +456,7 @@ export function ServerPanel({
           panel.style.left = fx + "px";
           panel.style.top = fy + "px";
           posRef.current = { x: fx, y: fy };
-          reportRect({ x: fx, y: fy, w: PANEL_WIDTH, h: panelHeight });
+          syncRect();
 
           // Sample for velocity
           const now = performance.now();
@@ -486,7 +492,7 @@ export function ServerPanel({
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [onBringToFront, calculateVelocity, startMomentum, onPositionChange, reportRect]
+    [onBringToFront, calculateVelocity, startMomentum, onPositionChange, syncRect]
   );
 
   return (
