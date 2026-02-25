@@ -63,6 +63,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
   overflow-x: hidden;
+  cursor: default;
+}
+
+a, button, [role="button"], input[type="submit"], select, summary {
+  cursor: pointer;
+}
+
+/* Kill all focus outlines globally */
+*:focus,
+*:focus-visible {
+  outline: none !important;
 }
 
 /* ─── Reusable component styles ─── */
