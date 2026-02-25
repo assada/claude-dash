@@ -42,6 +42,13 @@ func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPe
 		return "", fmt.Errorf("tmux set-option: %s: %w", string(out), err)
 	}
 
+	// Enable mouse mode so wheel events scroll pane history
+	// instead of being converted to arrow-key sequences by xterm.js
+	cmd = exec.Command("tmux", "set-option", "-t", sessionID, "mouse", "on")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("tmux set-option mouse: %s: %w", string(out), err)
+	}
+
 	// Start Claude Code inside
 	claudeCmd := "claude"
 	if dangerouslySkipPermissions {
