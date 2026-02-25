@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "db:setup": "bash prisma/setup.sh",
-    "dev": "npm run db:setup && tsx server.ts",
+    "dev": "npx prisma generate && node --env-file=../.env --import=tsx server.ts",
     "build": "npm run db:setup && next build",
     "start": "NODE_ENV=production tsx server.ts",
     "lint": "eslint"

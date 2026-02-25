@@ -6,7 +6,8 @@ agent/ccdash-agent-*
 dashboard/node_modules/
 dashboard/.next/
 
-# Config with secrets
+# Env & config with secrets
+.env
 config/config.yaml
 
 # OS
