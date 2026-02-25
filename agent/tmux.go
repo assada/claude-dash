@@ -40,7 +40,7 @@ func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPe
 	// Make tmux invisible and behave like a plain terminal.
 	opts := map[string]string{
 		"history-limit":          fmt.Sprintf("%d", historyLimit),
-		"mouse":                  "on",    // wheel = scroll pane history, not arrow keys
+		"mouse":                  "on",    // wheel = scroll pane history (Shift+drag for text selection)
 		"status":                 "off",   // hide the green status bar
 		"escape-time":            "0",     // no delay after Esc (snappy input)
 		"focus-events":           "on",    // forward focus in/out to the app

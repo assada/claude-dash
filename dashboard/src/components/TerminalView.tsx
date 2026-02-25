@@ -105,7 +105,6 @@ export function TerminalView({
       fitAddon.fit();
       term.focus();
 
-
       termRef.current = term;
       fitRef.current = fitAddon;
 
