@@ -97,6 +97,7 @@ export function TerminalView({
     // Small delay to ensure container has real dimensions before fit
     requestAnimationFrame(() => {
       fitAddon.fit();
+      term.focus();
     });
 
     termRef.current = term;
