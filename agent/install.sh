@@ -19,6 +19,13 @@ ok()    { echo -e "${GREEN}==>${NC} $*"; }
 warn()  { echo -e "${YELLOW}==>${NC} $*"; }
 err()   { echo -e "${RED}==>${NC} $*" >&2; }
 
+# Read from terminal even when piped through curl
+prompt() {
+    echo -n "$1" > /dev/tty
+    read -r REPLY < /dev/tty
+    echo "$REPLY"
+}
+
 echo -e "${BOLD}"
 echo "  ╔══════════════════════════════════════╗"
 echo "  ║   Claude Dashboard — Agent Installer ║"
@@ -49,8 +56,7 @@ info "Platform: ${BOLD}${PLATFORM}${NC}"
 if ! command -v tmux &> /dev/null; then
     warn "tmux is not installed!"
     if [ "$OS" = "linux" ]; then
-        echo -n "  Install tmux now? [Y/n] "
-        read -r ans
+        ans=$(prompt "  Install tmux now? [Y/n] ")
         if [ "$ans" != "n" ] && [ "$ans" != "N" ]; then
             if command -v apt-get &> /dev/null; then
                 sudo apt-get update -qq && sudo apt-get install -y -qq tmux
@@ -67,8 +73,7 @@ if ! command -v tmux &> /dev/null; then
             exit 1
         fi
     elif [ "$OS" = "darwin" ]; then
-        echo -n "  Install tmux via Homebrew? [Y/n] "
-        read -r ans
+        ans=$(prompt "  Install tmux via Homebrew? [Y/n] ")
         if [ "$ans" != "n" ] && [ "$ans" != "N" ]; then
             brew install tmux
         else
@@ -88,44 +93,37 @@ echo ""
 
 # Port
 DEFAULT_PORT=9100
-echo -n "  Port [${DEFAULT_PORT}]: "
-read -r PORT
+PORT=$(prompt "  Port [${DEFAULT_PORT}]: ")
 PORT="${PORT:-$DEFAULT_PORT}"
 
 # Bind address
-echo ""
-echo "  Listen on:"
-echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended"
-echo "    2) All interfaces (0.0.0.0)"
-echo "    3) Localhost only (127.0.0.1)"
-echo "    4) Custom IP"
-echo -n "  Choose [1]: "
-read -r BIND_CHOICE
+echo "" > /dev/tty
+echo "  Listen on:" > /dev/tty
+echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended" > /dev/tty
+echo "    2) All interfaces (0.0.0.0)" > /dev/tty
+echo "    3) Localhost only (127.0.0.1)" > /dev/tty
+echo "    4) Custom IP" > /dev/tty
+BIND_CHOICE=$(prompt "  Choose [1]: ")
 BIND_CHOICE="${BIND_CHOICE:-1}"
 
 case "$BIND_CHOICE" in
-    1) BIND="" ;;  # Agent auto-detects Tailscale
+    1) BIND="" ;;
     2) BIND="0.0.0.0" ;;
     3) BIND="127.0.0.1" ;;
-    4)
-        echo -n "  IP address: "
-        read -r BIND
-        ;;
+    4) BIND=$(prompt "  IP address: ") ;;
     *) BIND="" ;;
 esac
 
 # Auth token
-echo ""
-echo -n "  Auth token (leave empty to auto-generate): "
-read -r TOKEN
+echo "" > /dev/tty
+TOKEN=$(prompt "  Auth token (leave empty to auto-generate): ")
 if [ -z "$TOKEN" ]; then
-    TOKEN=$(openssl rand -hex 24 2>/dev/null || head -c 48 /dev/urandom | base64 | tr -d '/+=' | head -c 48)
+    TOKEN=$(openssl rand -hex 24 2>/dev/null || cat /dev/urandom | head -c 24 | xxd -p)
 fi
 
 # Working directories
-echo ""
-echo -n "  Working directories (comma-separated) [~/projects]: "
-read -r WORKDIRS_INPUT
+echo "" > /dev/tty
+WORKDIRS_INPUT=$(prompt "  Working directories (comma-separated) [~/projects]: ")
 WORKDIRS_INPUT="${WORKDIRS_INPUT:-~/projects}"
 
 # ── Download binary ──────────────────────────────────────────────
@@ -178,13 +176,14 @@ WORKDIRS_YAML=""
 IFS=',' read -ra DIRS <<< "$WORKDIRS_INPUT"
 for dir in "${DIRS[@]}"; do
     dir=$(echo "$dir" | xargs) # trim whitespace
-    WORKDIRS_YAML="${WORKDIRS_YAML}  - ${dir}\n"
+    WORKDIRS_YAML="${WORKDIRS_YAML}  - ${dir}
+"
 done
 
+SKIP_CONFIG=""
 if [ -f "$CONFIG_DIR/agent.yaml" ]; then
     warn "Config already exists: $CONFIG_DIR/agent.yaml"
-    echo -n "  Overwrite? [y/N] "
-    read -r ans
+    ans=$(prompt "  Overwrite? [y/N] ")
     if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
         info "Keeping existing config."
         SKIP_CONFIG=1
@@ -204,7 +203,7 @@ ${BIND_LINE}
 port: ${PORT}
 token: "${TOKEN}"
 workdirs:
-$(echo -e "$WORKDIRS_YAML")scrollback_dir: ${SCROLLBACK_DIR}
+${WORKDIRS_YAML}scrollback_dir: ${SCROLLBACK_DIR}
 scrollback_dump_interval: 30s
 history_limit: 50000
 ENDCFG
@@ -222,7 +221,7 @@ if [ "$OS" = "linux" ] && systemctl is-active --quiet ccdash-agent 2>/dev/null; 
     sudo systemctl stop ccdash-agent
 fi
 if [ "$OS" = "darwin" ]; then
-    launchctl bootout gui/$(id -u)/com.claude-dashboard.agent 2>/dev/null || true
+    launchctl bootout "gui/$(id -u)/com.claude-dashboard.agent" 2>/dev/null || true
 fi
 
 if [ "$OS" = "linux" ] && command -v systemctl &> /dev/null; then
@@ -286,7 +285,7 @@ elif [ "$OS" = "darwin" ]; then
 </dict>
 </plist>
 ENDPLIST
-    launchctl bootstrap gui/$(id -u) "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null || true
     ok "launchd service started"
     echo ""
     echo "  Manage:"
