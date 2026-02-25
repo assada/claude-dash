@@ -316,10 +316,10 @@ class AgentManager {
     }
   }
 
-  createSession(serverId: string, workdir: string, name: string) {
+  createSession(serverId: string, workdir: string, name: string, dangerouslySkipPermissions?: boolean) {
     const conn = this.connections.get(serverId);
     if (!conn) return;
-    conn.send({ type: "create_session", workdir, name });
+    conn.send({ type: "create_session", workdir, name, dangerously_skip_permissions: dangerouslySkipPermissions || false });
   }
 
   killSession(serverId: string, sessionId: string) {

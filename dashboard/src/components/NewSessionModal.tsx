@@ -78,7 +78,7 @@ export function NewSessionModal({
   servers: ServerStatus[];
   defaultServerId?: string;
   onClose: () => void;
-  onSubmit: (serverId: string, workdir: string, name: string) => void;
+  onSubmit: (serverId: string, workdir: string, name: string, dangerouslySkipPermissions?: boolean) => void;
 }) {
   const [serverId, setServerId] = useState(
     defaultServerId ||
@@ -88,6 +88,7 @@ export function NewSessionModal({
   );
   const [workdir, setWorkdir] = useState("");
   const [name, setName] = useState("");
+  const [skipPermissions, setSkipPermissions] = useState(false);
 
   const selectedServer = servers.find((s) => s.id === serverId);
   const dirs = selectedServer?.dirs || [];
@@ -217,6 +218,19 @@ export function NewSessionModal({
             />
           </div>
 
+          {/* Skip permissions */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={skipPermissions}
+              onChange={(e) => setSkipPermissions(e.target.checked)}
+              className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-orange-500 focus:ring-orange-500/30"
+            />
+            <span className="text-sm text-zinc-400">
+              --dangerously-skip-permissions
+            </span>
+          </label>
+
           {/* Submit */}
           <div className="flex justify-end gap-2 pt-2">
             <button
@@ -228,7 +242,7 @@ export function NewSessionModal({
             <button
               onClick={() => {
                 if (serverId && resolved && isValid) {
-                  onSubmit(serverId, resolved, name || "session");
+                  onSubmit(serverId, resolved, name || "session", skipPermissions);
                   onClose();
                 }
               }}

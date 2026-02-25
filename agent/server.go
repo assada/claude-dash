@@ -16,13 +16,14 @@ import (
 
 // Client → Agent messages
 type ClientMessage struct {
-	Type      string `json:"type"`
-	SessionID string `json:"session_id,omitempty"`
-	Workdir   string `json:"workdir,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Data      string `json:"data,omitempty"` // base64
-	Cols      int    `json:"cols,omitempty"`
-	Rows      int    `json:"rows,omitempty"`
+	Type                       string `json:"type"`
+	SessionID                  string `json:"session_id,omitempty"`
+	Workdir                    string `json:"workdir,omitempty"`
+	Name                       string `json:"name,omitempty"`
+	Data                       string `json:"data,omitempty"` // base64
+	Cols                       int    `json:"cols,omitempty"`
+	Rows                       int    `json:"rows,omitempty"`
+	DangerouslySkipPermissions bool   `json:"dangerously_skip_permissions,omitempty"`
 }
 
 // Agent → Client messages
@@ -136,7 +137,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if name == "" {
 				name = "session"
 			}
-			sessionID, err := createTmuxSession(name, workdir, s.config.HistoryLimit)
+			sessionID, err := createTmuxSession(name, workdir, s.config.HistoryLimit, msg.DangerouslySkipPermissions)
 			if err != nil {
 				s.sendError(conn, err.Error())
 				continue

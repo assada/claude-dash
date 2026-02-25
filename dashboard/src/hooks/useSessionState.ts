@@ -121,11 +121,11 @@ export function useSessionState() {
   }, [connect]);
 
   const createSession = useCallback(
-    (serverId: string, workdir: string, name: string) => {
+    (serverId: string, workdir: string, name: string, dangerouslySkipPermissions?: boolean) => {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(
-          JSON.stringify({ type: "create_session", serverId, workdir, name })
+          JSON.stringify({ type: "create_session", serverId, workdir, name, dangerouslySkipPermissions: dangerouslySkipPermissions || false })
         );
       }
     },
