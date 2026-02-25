@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { agentManager } from "@/lib/agent-manager";
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const serverId = id || randomBytes(6).toString("hex");
+  const serverId = id || randomUUID();
 
   const server = await prisma.server.upsert({
     where: { userId_serverId: { userId, serverId } },
