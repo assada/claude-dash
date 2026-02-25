@@ -22,7 +22,7 @@ func tmuxAvailable() bool {
 	return err == nil
 }
 
-func createTmuxSession(name, workdir string, historyLimit int) (string, error) {
+func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPermissions bool) (string, error) {
 	sessionID := fmt.Sprintf("cc-%d-%s", time.Now().UnixMilli(), sanitizeName(name))
 
 	// Create tmux session
@@ -43,7 +43,11 @@ func createTmuxSession(name, workdir string, historyLimit int) (string, error) {
 	}
 
 	// Start Claude Code inside
-	cmd = exec.Command("tmux", "send-keys", "-t", sessionID, "claude", "Enter")
+	claudeCmd := "claude"
+	if dangerouslySkipPermissions {
+		claudeCmd = "claude --dangerously-skip-permissions"
+	}
+	cmd = exec.Command("tmux", "send-keys", "-t", sessionID, claudeCmd, "Enter")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("tmux send-keys: %s: %w", string(out), err)
 	}

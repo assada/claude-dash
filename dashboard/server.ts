@@ -20,6 +20,7 @@ interface BrowserMessage {
   data?: string;
   cols?: number;
   rows?: number;
+  dangerouslySkipPermissions?: boolean;
 }
 
 app.prepare().then(() => {
@@ -82,7 +83,8 @@ app.prepare().then(() => {
             agentManager.createSession(
               msg.serverId,
               msg.workdir,
-              msg.name || "session"
+              msg.name || "session",
+              msg.dangerouslySkipPermissions
             );
           }
           break;
