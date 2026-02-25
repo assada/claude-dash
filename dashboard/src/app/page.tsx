@@ -115,7 +115,7 @@ export default function Home() {
             <Terminal size={18} className="text-text-secondary" />
           </div>
           <h1 className="text-[17px] font-semibold text-text-secondary tracking-tight">
-            Claude Dashboard
+            ADHD Dashboard
           </h1>
 
           {attentionCount > 0 && (

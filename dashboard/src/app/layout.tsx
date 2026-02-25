@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Claude Dashboard",
+  title: "ADHD Dashboard",
   description: "Monitor and manage Claude Code sessions",
 };
 

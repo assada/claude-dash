@@ -18,16 +18,16 @@ export function useNotification(servers: ServerStatus[]) {
 
     // Update tab title
     if (count > 0) {
-      document.title = `(${count}) Claude Dashboard`;
+      document.title = `(${count}) ADHD Dashboard`;
     } else {
-      document.title = "Claude Dashboard";
+      document.title = "ADHD Dashboard";
     }
 
     // New attention needed - show notification
     if (count > prevAttentionCount.current && prevAttentionCount.current >= 0) {
       // Browser notification
       if (Notification.permission === "granted") {
-        new Notification("Claude Dashboard", {
+        new Notification("ADHD Dashboard", {
           body: `${count} session(s) need your attention`,
           icon: "/favicon.ico",
         });
