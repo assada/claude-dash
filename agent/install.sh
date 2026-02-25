@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# When piped through curl, stdin is the script itself.
+# Open /dev/tty on fd 3 for interactive input.
+exec 3</dev/tty
+
 REPO="assada/claude-dash"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CONFIG_DIR="$HOME/.claude-dashboard"
@@ -19,11 +23,12 @@ ok()    { echo -e "${GREEN}==>${NC} $*"; }
 warn()  { echo -e "${YELLOW}==>${NC} $*"; }
 err()   { echo -e "${RED}==>${NC} $*" >&2; }
 
-# Read from terminal even when piped through curl
-prompt() {
-    echo -n "$1" > /dev/tty
-    read -r REPLY < /dev/tty
-    echo "$REPLY"
+# ask "prompt text" DEFAULT_VALUE
+# Result is stored in $REPLY
+ask() {
+    printf '%s' "$1" >&3
+    read -r REPLY <&3
+    REPLY="${REPLY:-$2}"
 }
 
 echo -e "${BOLD}"
@@ -56,8 +61,8 @@ info "Platform: ${BOLD}${PLATFORM}${NC}"
 if ! command -v tmux &> /dev/null; then
     warn "tmux is not installed!"
     if [ "$OS" = "linux" ]; then
-        ans=$(prompt "  Install tmux now? [Y/n] ")
-        if [ "$ans" != "n" ] && [ "$ans" != "N" ]; then
+        ask "  Install tmux now? [Y/n] " "y"
+        if [ "$REPLY" != "n" ] && [ "$REPLY" != "N" ]; then
             if command -v apt-get &> /dev/null; then
                 sudo apt-get update -qq && sudo apt-get install -y -qq tmux
             elif command -v yum &> /dev/null; then
@@ -73,8 +78,8 @@ if ! command -v tmux &> /dev/null; then
             exit 1
         fi
     elif [ "$OS" = "darwin" ]; then
-        ans=$(prompt "  Install tmux via Homebrew? [Y/n] ")
-        if [ "$ans" != "n" ] && [ "$ans" != "N" ]; then
+        ask "  Install tmux via Homebrew? [Y/n] " "y"
+        if [ "$REPLY" != "n" ] && [ "$REPLY" != "N" ]; then
             brew install tmux
         else
             err "tmux is required. Aborting."
@@ -92,46 +97,45 @@ echo -e "${BOLD}Configuration${NC}"
 echo ""
 
 # Port
-DEFAULT_PORT=9100
-PORT=$(prompt "  Port [${DEFAULT_PORT}]: ")
-PORT="${PORT:-$DEFAULT_PORT}"
+ask "  Port [9100]: " "9100"
+PORT="$REPLY"
 
 # Bind address
-echo "" > /dev/tty
-echo "  Listen on:" > /dev/tty
-echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended" > /dev/tty
-echo "    2) All interfaces (0.0.0.0)" > /dev/tty
-echo "    3) Localhost only (127.0.0.1)" > /dev/tty
-echo "    4) Custom IP" > /dev/tty
-BIND_CHOICE=$(prompt "  Choose [1]: ")
-BIND_CHOICE="${BIND_CHOICE:-1}"
+echo "" >&3
+echo "  Listen on:" >&3
+echo "    1) Tailscale only (auto-detect 100.x.x.x) — recommended" >&3
+echo "    2) All interfaces (0.0.0.0)" >&3
+echo "    3) Localhost only (127.0.0.1)" >&3
+echo "    4) Custom IP" >&3
+ask "  Choose [1]: " "1"
+BIND_CHOICE="$REPLY"
 
 case "$BIND_CHOICE" in
     1) BIND="" ;;
     2) BIND="0.0.0.0" ;;
     3) BIND="127.0.0.1" ;;
-    4) BIND=$(prompt "  IP address: ") ;;
+    4) ask "  IP address: " ""; BIND="$REPLY" ;;
     *) BIND="" ;;
 esac
 
 # Auth token
-echo "" > /dev/tty
-TOKEN=$(prompt "  Auth token (leave empty to auto-generate): ")
+echo "" >&3
+ask "  Auth token (leave empty to auto-generate): " ""
+TOKEN="$REPLY"
 if [ -z "$TOKEN" ]; then
     TOKEN=$(openssl rand -hex 24 2>/dev/null || cat /dev/urandom | head -c 24 | xxd -p)
 fi
 
 # Working directories
-echo "" > /dev/tty
-WORKDIRS_INPUT=$(prompt "  Working directories (comma-separated) [~/projects]: ")
-WORKDIRS_INPUT="${WORKDIRS_INPUT:-~/projects}"
+echo "" >&3
+ask "  Working directories (comma-separated) [~/projects]: " "~/projects"
+WORKDIRS_INPUT="$REPLY"
 
 # ── Download binary ──────────────────────────────────────────────
 
 echo ""
 BINARY_NAME="ccdash-agent-${PLATFORM}"
 
-# Try to get latest release
 info "Fetching latest release..."
 RELEASE_URL=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep "browser_download_url.*${BINARY_NAME}" | head -1 | cut -d '"' -f 4)
 
@@ -183,15 +187,14 @@ done
 SKIP_CONFIG=""
 if [ -f "$CONFIG_DIR/agent.yaml" ]; then
     warn "Config already exists: $CONFIG_DIR/agent.yaml"
-    ans=$(prompt "  Overwrite? [y/N] ")
-    if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
+    ask "  Overwrite? [y/N] " "n"
+    if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
         info "Keeping existing config."
         SKIP_CONFIG=1
     fi
 fi
 
 if [ -z "$SKIP_CONFIG" ]; then
-    BIND_LINE=""
     if [ -n "$BIND" ]; then
         BIND_LINE="bind: \"${BIND}\""
     else
@@ -314,3 +317,6 @@ echo "  (save this — you'll need it in the dashboard config)"
 echo ""
 echo "  Test: curl http://localhost:${PORT}/health"
 echo ""
+
+# Close fd 3
+exec 3<&-
