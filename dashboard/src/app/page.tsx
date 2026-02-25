@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Plus, Settings, Terminal } from "lucide-react";
-import { ServerGroup } from "@/components/ServerGroup";
+import { ServerPanel } from "@/components/ServerPanel";
 import { NewSessionModal } from "@/components/NewSessionModal";
 import { TerminalView } from "@/components/TerminalView";
 import { ArchiveStack } from "@/components/ArchiveStack";
@@ -117,8 +117,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="px-6 py-6 max-w-7xl mx-auto relative z-10">
+      {/* Main — panels laid out in a flex wrap */}
+      <main className="px-8 py-8 relative z-10">
         {servers.length === 0 ? (
           <div className="text-center py-20 text-text-faint">
             <Terminal size={48} className="mx-auto mb-4 opacity-30" />
@@ -132,22 +132,24 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          servers.map((server) => (
-            <ServerGroup
-              key={server.id}
-              server={server}
-              onOpenTerminal={(sessionId) =>
-                handleOpenTerminal(server.id, sessionId)
-              }
-              onKillSession={(sessionId) =>
-                killSession(server.id, sessionId)
-              }
-              onNewSession={() => {
-                setDefaultNewServerId(server.id);
-                setShowNewSession(true);
-              }}
-            />
-          ))
+          <div className="flex flex-wrap gap-6">
+            {servers.map((server) => (
+              <ServerPanel
+                key={server.id}
+                server={server}
+                onOpenTerminal={(sessionId) =>
+                  handleOpenTerminal(server.id, sessionId)
+                }
+                onKillSession={(sessionId) =>
+                  killSession(server.id, sessionId)
+                }
+                onNewSession={() => {
+                  setDefaultNewServerId(server.id);
+                  setShowNewSession(true);
+                }}
+              />
+            ))}
+          </div>
         )}
       </main>
 
