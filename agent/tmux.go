@@ -56,7 +56,10 @@ func listTmuxSessions() ([]TmuxSession, error) {
 		"#{session_id}:#{session_name}:#{session_created}:#{session_windows}:#{session_attached}:#{session_width}:#{session_height}")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		if strings.Contains(string(out), "no server running") || strings.Contains(string(out), "no sessions") {
+		outStr := string(out)
+		if strings.Contains(outStr, "no server running") ||
+			strings.Contains(outStr, "no sessions") ||
+			strings.Contains(outStr, "error connecting to") {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("tmux list-sessions: %s: %w", string(out), err)
