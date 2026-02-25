@@ -17,7 +17,6 @@ function timeSince(ts: number): string {
 }
 
 function shortName(name: string): string {
-  // Remove cc- prefix and timestamp
   const match = name.match(/^cc-\d+-(.+)$/);
   return match ? match[1] : name;
 }
@@ -38,29 +37,50 @@ export function SessionCard({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{
+        opacity: 0,
+        scale: 0.95,
+        y: 10,
+      }}
+      animate={{
+        opacity: 1,
+        scale: 1,
+        y: 0,
+      }}
       exit={{ opacity: 0, scale: 0.6, y: 50 }}
-      whileHover={{ scale: 1.02 }}
+      transition={{
+        opacity: { duration: 0.15 },
+        scale: { type: "spring", stiffness: 400, damping: 25 },
+        y: { type: "spring", stiffness: 400, damping: 25 },
+      }}
+      whileHover={{
+        scale: 1.018,
+        boxShadow: "0 32px 40px -8px rgba(0, 0, 0, 0.55)",
+      }}
       onDoubleClick={onDoubleClick}
-      className={`
-        relative group cursor-pointer rounded-xl border p-4
-        transition-colors select-none
-        ${isDead ? "opacity-50" : ""}
-        ${isNeedsAttention ? "bg-red-950/20" : "bg-zinc-900/50"}
-      `}
+      className="relative group cursor-pointer select-none"
       style={{
-        borderColor: isNeedsAttention ? undefined : `${stateColor}33`,
+        borderRadius: 12,
+        border: isNeedsAttention
+          ? `1px solid ${stateColor}`
+          : "1px solid #404040",
+        padding: 16,
+        background: isNeedsAttention
+          ? "linear-gradient(135deg, #2a1a1a 0%, #262626 100%)"
+          : "linear-gradient(135deg, #3a3a3a 0%, #262626 100%)",
+        boxShadow: "0 24px 24px -12px rgba(0, 0, 0, 0.25)",
+        opacity: isDead ? 0.5 : 1,
+        transition:
+          "transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >
       {/* Pulsing glow for needs_attention */}
       {isNeedsAttention && (
         <motion.div
-          className="absolute inset-0 rounded-xl pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{
+            borderRadius: 12,
             boxShadow: `0 0 20px ${stateColor}40, inset 0 0 20px ${stateColor}10`,
-            border: `1px solid ${stateColor}`,
-            borderRadius: "0.75rem",
           }}
           animate={{
             boxShadow: [
@@ -76,10 +96,13 @@ export function SessionCard({
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
         <StatusIndicator state={session.state} />
-        <span className="font-semibold text-sm text-zinc-100 truncate">
+        <span
+          className="truncate"
+          style={{ fontSize: 13, fontWeight: 600, color: "#fafafa" }}
+        >
           {shortName(session.name)}
         </span>
-        <span className="ml-auto text-xs text-zinc-500">
+        <span className="ml-auto" style={{ fontSize: 11, color: "#737373" }}>
           {timeSince(session.state_changed_at)}
         </span>
       </div>
@@ -90,29 +113,50 @@ export function SessionCard({
       </div>
 
       {/* Workdir */}
-      <div className="flex items-center gap-1 text-xs text-zinc-500 mb-2">
-        <FolderOpen size={12} />
+      <div
+        className="flex items-center gap-1 mb-2"
+        style={{ fontSize: 11, color: "#737373" }}
+      >
+        <FolderOpen size={11} />
         <span className="truncate">{session.workdir || "~"}</span>
       </div>
 
       {/* Last line preview */}
       {session.last_line && (
-        <div className="text-xs text-zinc-600 truncate" style={{ fontFamily: "'JetBrains Mono NF', 'JetBrains Mono', Menlo, monospace" }}>
+        <div
+          className="truncate"
+          style={{
+            fontSize: 11,
+            color: "#525252",
+            fontFamily:
+              "'JetBrains Mono NF', 'JetBrains Mono', Menlo, monospace",
+          }}
+        >
           {session.last_line}
         </div>
       )}
 
       {/* Actions (visible on hover) */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+      <div
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1"
+        style={{ transition: "opacity 0.2s ease-out" }}
+      >
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDoubleClick();
           }}
-          className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400"
+          className="btn-skin"
+          style={{
+            padding: 5,
+            borderRadius: 6,
+            border: "1px solid #404040",
+            color: "#737373",
+            transition: "color 0.2s ease",
+          }}
           title="Open terminal"
         >
-          <Terminal size={14} />
+          <Terminal size={13} />
         </button>
         {!isDead && (
           <button
@@ -122,10 +166,27 @@ export function SessionCard({
                 onKill();
               }
             }}
-            className="p-1 rounded bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-red-400"
+            style={{
+              padding: 5,
+              borderRadius: 6,
+              border: "1px solid #404040",
+              background: "#262626",
+              color: "#737373",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#3a1a1a";
+              e.currentTarget.style.borderColor = "#ef4444";
+              e.currentTarget.style.color = "#ef4444";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#262626";
+              e.currentTarget.style.borderColor = "#404040";
+              e.currentTarget.style.color = "#737373";
+            }}
             title="Kill session"
           >
-            <Trash2 size={14} />
+            <Trash2 size={13} />
           </button>
         )}
       </div>

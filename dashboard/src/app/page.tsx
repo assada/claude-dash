@@ -11,8 +11,14 @@ import { useSessionState } from "@/hooks/useSessionState";
 import { useNotification } from "@/hooks/useNotification";
 
 export default function Home() {
-  const { servers, archivedSessions, archiveCount, createSession, killSession, clearArchive } =
-    useSessionState();
+  const {
+    servers,
+    archivedSessions,
+    archiveCount,
+    createSession,
+    killSession,
+    clearArchive,
+  } = useSessionState();
   const [showNewSession, setShowNewSession] = useState(false);
   const [defaultNewServerId, setDefaultNewServerId] = useState<string>();
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -27,7 +33,6 @@ export default function Home() {
 
   const handleOpenTerminal = useCallback(
     (serverId: string, sessionId: string) => {
-      // Look in active servers first, then archived sessions
       const server = servers.find((s) => s.id === serverId);
       const session = server?.sessions.find((s) => s.id === sessionId);
       const archived = archivedSessions.find(
@@ -78,15 +83,53 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen dot-grid" style={{ background: "#171717" }}>
+      {/* Noise overlay */}
+      <div className="noise-overlay" />
+
       {/* Top bar */}
-      <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur border-b border-zinc-800 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <Terminal size={24} className="text-blue-500" />
-          <h1 className="text-lg font-bold">Claude Dashboard</h1>
+      <header
+        className="sticky top-0 z-40 backdrop-blur"
+        style={{
+          background: "rgba(23, 23, 23, 0.85)",
+          borderBottom: "1px solid #262626",
+        }}
+      >
+        <div className="flex items-center gap-3 px-6 py-3">
+          <div
+            className="btn-skin flex items-center justify-center"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              border: "1px solid #404040",
+            }}
+          >
+            <Terminal size={18} style={{ color: "#e5e5e5" }} />
+          </div>
+          <h1
+            style={{
+              fontSize: 17,
+              fontWeight: 600,
+              color: "#e5e5e5",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Claude Dashboard
+          </h1>
 
           {attentionCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-xs font-bold animate-pulse">
+            <span
+              className="animate-shimmer"
+              style={{
+                padding: "2px 8px",
+                borderRadius: 6,
+                background: "#ef4444",
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
               {attentionCount}
             </span>
           )}
@@ -97,29 +140,51 @@ export default function Home() {
                 setDefaultNewServerId(undefined);
                 setShowNewSession(true);
               }}
-              className="flex items-center gap-1 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
+              className="btn-skin flex items-center gap-1.5"
+              style={{
+                padding: "6px 14px",
+                borderRadius: 8,
+                border: "1px solid #404040",
+                color: "#e5e5e5",
+                fontSize: 13,
+                fontWeight: 500,
+                transition: "all 0.2s ease",
+              }}
             >
               <Plus size={14} /> New Session
             </button>
             <a
               href="/settings"
-              className="p-2 hover:bg-zinc-800 rounded text-zinc-400"
+              className="btn-skin flex items-center justify-center"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                border: "1px solid #404040",
+                color: "#737373",
+                transition: "color 0.2s ease",
+              }}
             >
-              <Settings size={18} />
+              <Settings size={16} />
             </a>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="px-6 py-6 max-w-7xl mx-auto">
+      <main className="px-6 py-6 max-w-7xl mx-auto relative z-10">
         {servers.length === 0 ? (
-          <div className="text-center py-20 text-zinc-600">
-            <Terminal size={48} className="mx-auto mb-4 opacity-50" />
-            <p className="text-lg mb-2">No servers configured</p>
-            <p className="text-sm">
+          <div className="text-center py-20" style={{ color: "#525252" }}>
+            <Terminal size={48} className="mx-auto mb-4 opacity-30" />
+            <p style={{ fontSize: 17, fontWeight: 500, marginBottom: 8 }}>
+              No servers configured
+            </p>
+            <p style={{ fontSize: 13, color: "#737373" }}>
               Go to{" "}
-              <a href="/settings" className="text-blue-500 hover:underline">
+              <a
+                href="/settings"
+                style={{ color: "#58a6ff", textDecoration: "none" }}
+              >
                 Settings
               </a>{" "}
               to add agent servers

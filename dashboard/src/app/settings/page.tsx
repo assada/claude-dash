@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Wifi,
+  WifiOff,
+  Check,
+  X,
+} from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
 
 interface ServerForm {
@@ -11,6 +19,18 @@ interface ServerForm {
   port: number;
   token: string;
 }
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  background: "rgba(10, 10, 10, 0.3)",
+  border: "1px solid #404040",
+  borderRadius: 8,
+  padding: "8px 12px",
+  fontSize: 13,
+  color: "#fafafa",
+  outline: "none",
+  transition: "border-color 0.2s ease",
+};
 
 export default function SettingsPage() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
@@ -55,22 +75,42 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur border-b border-zinc-800 px-6 py-3">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen dot-grid" style={{ background: "#171717", color: "#fafafa" }}>
+      <div className="noise-overlay" />
+
+      <header
+        className="sticky top-0 z-40 backdrop-blur"
+        style={{
+          background: "rgba(23, 23, 23, 0.85)",
+          borderBottom: "1px solid #262626",
+        }}
+      >
+        <div className="flex items-center gap-3 px-6 py-3">
           <a
             href="/"
-            className="flex items-center gap-1 text-zinc-400 hover:text-zinc-200 text-sm"
+            className="flex items-center gap-1"
+            style={{
+              fontSize: 13,
+              color: "#737373",
+              textDecoration: "none",
+              transition: "color 0.2s ease",
+            }}
           >
-            <ArrowLeft size={16} /> Back
+            <ArrowLeft size={14} /> Back
           </a>
-          <h1 className="text-lg font-bold">Settings</h1>
+          <span
+            style={{ fontSize: 17, fontWeight: 600, color: "#e5e5e5" }}
+          >
+            Settings
+          </span>
         </div>
       </header>
 
-      <main className="px-6 py-6 max-w-3xl mx-auto">
+      <main className="px-6 py-6 max-w-3xl mx-auto relative z-10">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Servers</h2>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "#e5e5e5" }}>
+            Servers
+          </span>
           <button
             onClick={() => {
               setEditingServer({
@@ -82,33 +122,56 @@ export default function SettingsPage() {
               });
               setIsNew(true);
             }}
-            className="flex items-center gap-1 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
+            className="btn-skin flex items-center gap-1"
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "1px solid #404040",
+              color: "#e5e5e5",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
           >
             <Plus size={14} /> Add Server
           </button>
         </div>
 
         {/* Server list */}
-        <div className="space-y-2 mb-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }} className="mb-6">
           {servers.map((server) => (
             <div
               key={server.id}
-              className="flex items-center gap-3 p-4 rounded-lg bg-zinc-900 border border-zinc-800"
+              className="flex items-center gap-3"
+              style={{
+                padding: 16,
+                borderRadius: 12,
+                background: "linear-gradient(135deg, #3a3a3a 0%, #262626 100%)",
+                border: "1px solid #404040",
+                boxShadow: "0 24px 24px -12px rgba(0, 0, 0, 0.25)",
+              }}
             >
               <div className="flex-1">
-                <div className="font-medium">{server.name}</div>
-                <div className="text-xs text-zinc-500">
+                <div style={{ fontWeight: 500, fontSize: 14, color: "#fafafa" }}>
+                  {server.name}
+                </div>
+                <div style={{ fontSize: 11, color: "#525252", marginTop: 2 }}>
                   {server.host}:{server.port}
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs">
+              <div className="flex items-center gap-1">
                 {server.online ? (
-                  <span className="flex items-center gap-1 text-green-500">
-                    <Wifi size={12} /> online
+                  <span
+                    className="flex items-center gap-1"
+                    style={{ fontSize: 11, color: "#4ade80" }}
+                  >
+                    <Wifi size={11} /> online
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-red-500">
-                    <WifiOff size={12} /> offline
+                  <span
+                    className="flex items-center gap-1"
+                    style={{ fontSize: 11, color: "#ef4444" }}
+                  >
+                    <WifiOff size={11} /> offline
                   </span>
                 )}
               </div>
@@ -123,21 +186,37 @@ export default function SettingsPage() {
                   });
                   setIsNew(false);
                 }}
-                className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded bg-zinc-800"
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "1px solid #404040",
+                  background: "#262626",
+                  color: "#737373",
+                  fontSize: 11,
+                  transition: "all 0.2s ease",
+                }}
               >
                 Edit
               </button>
               <button
                 onClick={() => handleDelete(server.id)}
-                className="p-1 hover:bg-red-900 rounded text-zinc-400 hover:text-red-400"
+                style={{
+                  padding: 5,
+                  borderRadius: 6,
+                  color: "#737373",
+                  transition: "all 0.2s ease",
+                }}
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} />
               </button>
             </div>
           ))}
 
           {servers.length === 0 && (
-            <div className="text-zinc-600 text-sm italic py-4">
+            <div
+              className="py-4"
+              style={{ fontSize: 13, color: "#525252", fontStyle: "italic" }}
+            >
               No servers configured. Add one to get started.
             </div>
           )}
@@ -145,29 +224,71 @@ export default function SettingsPage() {
 
         {/* Edit form */}
         {editingServer && (
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6">
-            <h3 className="text-md font-semibold mb-4">
+          <div
+            style={{
+              background: "#262626",
+              border: "1px solid #404040",
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: "0 32px 40px -8px rgba(0, 0, 0, 0.55)",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#e5e5e5",
+                marginBottom: 16,
+              }}
+            >
               {isNew ? "Add Server" : "Edit Server"}
-            </h3>
-            <div className="space-y-4">
+            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: "#737373",
+                      marginBottom: 6,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
                     ID
                   </label>
                   <input
                     type="text"
                     value={editingServer.id}
                     onChange={(e) =>
-                      setEditingServer({ ...editingServer, id: e.target.value })
+                      setEditingServer({
+                        ...editingServer,
+                        id: e.target.value,
+                      })
                     }
                     disabled={!isNew}
                     placeholder="my-server"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 disabled:opacity-50"
+                    style={{
+                      ...inputStyle,
+                      opacity: !isNew ? 0.5 : 1,
+                    }}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: "#737373",
+                      marginBottom: 6,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
                     Name
                   </label>
                   <input
@@ -180,13 +301,23 @@ export default function SettingsPage() {
                       })
                     }
                     placeholder="My Server"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
+                    style={inputStyle}
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: "#737373",
+                      marginBottom: 6,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
                     Tailscale IP / Host
                   </label>
                   <input
@@ -199,11 +330,21 @@ export default function SettingsPage() {
                       })
                     }
                     placeholder="100.64.1.10"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
+                    style={inputStyle}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: "#737373",
+                      marginBottom: 6,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
                     Port
                   </label>
                   <input
@@ -215,12 +356,22 @@ export default function SettingsPage() {
                         port: parseInt(e.target.value) || 9100,
                       })
                     }
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
+                    style={inputStyle}
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#737373",
+                    marginBottom: 6,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
                   Auth Token
                 </label>
                 <input
@@ -233,18 +384,28 @@ export default function SettingsPage() {
                     })
                   }
                   placeholder="Leave blank to keep current"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"
+                  style={inputStyle}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2" style={{ paddingTop: 4 }}>
                 <button
                   onClick={() => {
                     setEditingServer(null);
                     setIsNew(false);
                   }}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm"
+                  className="flex items-center gap-1"
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #404040",
+                    background: "#262626",
+                    color: "#a3a3a3",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    transition: "all 0.2s ease",
+                  }}
                 >
-                  <X size={14} /> Cancel
+                  <X size={13} /> Cancel
                 </button>
                 <button
                   onClick={handleSave}
@@ -254,9 +415,26 @@ export default function SettingsPage() {
                     !editingServer.name ||
                     !editingServer.host
                   }
-                  className="flex items-center gap-1 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm"
+                  className="btn-skin flex items-center gap-1"
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #2563eb",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    opacity:
+                      saving ||
+                      !editingServer.id ||
+                      !editingServer.name ||
+                      !editingServer.host
+                        ? 0.4
+                        : 1,
+                    background:
+                      "linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%)",
+                  }}
                 >
-                  <Check size={14} /> {saving ? "Saving..." : "Save"}
+                  <Check size={13} /> {saving ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>

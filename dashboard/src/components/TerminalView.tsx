@@ -238,33 +238,63 @@ export function TerminalView({
   const shortName = sessionName.replace(/^cc-\d+-/, "");
 
   return (
-    <div className="h-screen flex flex-col bg-[#0d1117]">
+    <div className="h-screen flex flex-col" style={{ background: "#0d1117" }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-800">
+      <div
+        className="flex items-center gap-3 px-4 py-2"
+        style={{
+          background: "#171717",
+          borderBottom: "1px solid #262626",
+        }}
+      >
         <button
           onClick={onBack}
-          className="flex items-center gap-1 text-zinc-400 hover:text-zinc-200 text-sm"
+          className="flex items-center gap-1"
+          style={{
+            fontSize: 13,
+            color: "#737373",
+            transition: "color 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#e5e5e5";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "#737373";
+          }}
         >
-          <ArrowLeft size={16} /> Overview
+          <ArrowLeft size={14} /> Overview
         </button>
-        <span className="text-zinc-600">|</span>
-        <span className="text-sm font-semibold text-zinc-200">
+        <span style={{ color: "#404040" }}>|</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e5e5" }}>
           {shortName}
         </span>
-        <span className="text-xs text-zinc-500">@ {serverName}</span>
+        <span style={{ fontSize: 11, color: "#525252" }}>@ {serverName}</span>
         <div className="flex items-center gap-2 ml-auto">
           <StatusIndicator state={sessionState} size={8} />
           <StateLabel state={sessionState} />
           {!connected && (
-            <span className="text-xs text-red-500 ml-2">disconnected</span>
+            <span style={{ fontSize: 11, color: "#ef4444", marginLeft: 8 }}>
+              disconnected
+            </span>
           )}
         </div>
         <button
           onClick={onBack}
-          className="p-1 hover:bg-zinc-800 rounded text-zinc-400"
+          style={{
+            padding: 4,
+            borderRadius: 6,
+            color: "#737373",
+            transition: "color 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#e5e5e5";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "#737373";
+          }}
           title="Close"
         >
-          <X size={16} />
+          <X size={14} />
         </button>
       </div>
 

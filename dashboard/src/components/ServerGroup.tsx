@@ -20,27 +20,63 @@ export function ServerGroup({
     <div className="mb-8">
       {/* Server header */}
       <div className="flex items-center gap-3 mb-4">
-        <Monitor size={20} className="text-zinc-400" />
-        <h2 className="text-lg font-semibold text-zinc-200">{server.name}</h2>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: "#262626",
+            border: "1px solid #404040",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Monitor size={14} style={{ color: "#737373" }} />
+        </div>
+        <span
+          style={{ fontSize: 15, fontWeight: 600, color: "#e5e5e5" }}
+        >
+          {server.name}
+        </span>
         {server.online ? (
-          <span className="flex items-center gap-1 text-xs text-green-500">
-            <Wifi size={12} /> online
+          <span
+            className="flex items-center gap-1"
+            style={{ fontSize: 11, color: "#4ade80" }}
+          >
+            <Wifi size={11} /> online
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-xs text-red-500">
-            <WifiOff size={12} /> offline
+          <span
+            className="flex items-center gap-1"
+            style={{ fontSize: 11, color: "#ef4444" }}
+          >
+            <WifiOff size={11} /> offline
           </span>
         )}
-        <span className="text-xs text-zinc-600">{server.host}</span>
+        <span style={{ fontSize: 11, color: "#525252" }}>
+          {server.host}
+        </span>
         {server.hostname && (
-          <span className="text-xs text-zinc-600">({server.hostname})</span>
+          <span style={{ fontSize: 11, color: "#525252" }}>
+            ({server.hostname})
+          </span>
         )}
         <button
           onClick={onNewSession}
-          className="ml-auto flex items-center gap-1 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs"
+          className="btn-skin ml-auto flex items-center gap-1"
+          style={{
+            padding: "4px 10px",
+            borderRadius: 6,
+            border: "1px solid #404040",
+            color: "#737373",
+            fontSize: 11,
+            fontWeight: 500,
+            transition: "color 0.2s ease",
+          }}
           title="New session"
         >
-          <Plus size={12} /> New
+          <Plus size={11} /> New
         </button>
       </div>
 
@@ -58,13 +94,19 @@ export function ServerGroup({
             ))}
           </AnimatePresence>
           {server.sessions.length === 0 && (
-            <div className="text-zinc-600 text-sm italic col-span-full py-4">
+            <div
+              className="col-span-full py-4"
+              style={{ fontSize: 13, color: "#525252", fontStyle: "italic" }}
+            >
               No sessions running
             </div>
           )}
         </div>
       ) : (
-        <div className="text-zinc-600 text-sm italic py-4">
+        <div
+          className="py-4"
+          style={{ fontSize: 13, color: "#525252", fontStyle: "italic" }}
+        >
           Server is offline
         </div>
       )}
