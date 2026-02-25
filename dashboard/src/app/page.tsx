@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
 import { ServerPanel } from "@/components/ServerPanel";
 import { DotGridCanvas, type PanelRect } from "@/components/DotGridCanvas";
@@ -30,6 +30,48 @@ export default function Home() {
     sessionName: string;
     serverName: string;
   } | null>(null);
+
+  // Sync terminal target with URL query params (?s=serverId&t=sessionId)
+  const pendingUrlRef = useRef<{ s: string; t: string } | null>(null);
+
+  // On mount: parse URL params for deep-link
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get("s");
+    const t = params.get("t");
+    if (s && t) {
+      pendingUrlRef.current = { s, t };
+    }
+  }, []);
+
+  // Resolve pending deep-link once servers are loaded
+  useEffect(() => {
+    if (!pendingUrlRef.current || servers.length === 0) return;
+    const { s, t } = pendingUrlRef.current;
+    pendingUrlRef.current = null;
+    const server = servers.find((sv) => sv.id === s);
+    const session = server?.sessions.find((ss) => ss.id === t);
+    if (session) {
+      setTerminalTarget({
+        serverId: s,
+        sessionId: t,
+        sessionName: session.name,
+        serverName: server?.name || s,
+      });
+    }
+  }, [servers]);
+
+  // Push/pop URL when terminal target changes
+  useEffect(() => {
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get("s") || !params.get("t")) {
+        setTerminalTarget(null);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const [zOrder, setZOrder] = useState<string[]>([]);
   const panelRectsRef = useRef<Record<string, PanelRect>>({});
@@ -62,13 +104,15 @@ export default function Home() {
       const serverName = server?.name || archived?.serverName || serverId;
 
       if (target) {
-        setTerminalTarget({
+        const t = {
           serverId,
           sessionId,
           sessionName: target.name,
           serverName,
-        });
+        };
+        setTerminalTarget(t);
         setArchiveOpen(false);
+        window.history.pushState(null, "", `/?s=${serverId}&t=${sessionId}`);
       }
     },
     [servers, archivedSessions]
@@ -95,7 +139,10 @@ export default function Home() {
         sessionName={terminalTarget.sessionName}
         serverName={terminalTarget.serverName}
         sessionState={state}
-        onBack={() => setTerminalTarget(null)}
+        onBack={() => {
+          setTerminalTarget(null);
+          window.history.pushState(null, "", "/");
+        }}
       />
     );
   }
