@@ -144,6 +144,7 @@ class AgentConnection {
 
   private startHeartbeat() {
     this.stopHeartbeat();
+    console.log(`[agent] ${this.config.name}: heartbeat started`);
     this.heartbeatTimer = setInterval(() => {
       const silentMs = Date.now() - this.lastMessageAt;
       if (silentMs > 5000) {
