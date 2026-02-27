@@ -16,6 +16,8 @@ class AgentConnection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private lastMessageAt = 0;
 
   public online = false;
   public hostname?: string;
@@ -52,11 +54,14 @@ class AgentConnection {
     this.ws.on("open", () => {
       this.online = true;
       this.reconnectDelay = 1000;
+      this.lastMessageAt = Date.now();
+      this.startHeartbeat();
       this.send({ type: "machine_info" });
       this.onUpdate();
     });
 
     this.ws.on("message", (data) => {
+      this.lastMessageAt = Date.now();
       try {
         const msg: AgentMessage = JSON.parse(data.toString());
         this.handleMessage(msg);
@@ -67,6 +72,7 @@ class AgentConnection {
 
     this.ws.on("close", (code, reason) => {
       console.log(`[agent] ${this.config.name}: WS closed (code=${code}, reason=${reason})`);
+      this.stopHeartbeat();
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -80,6 +86,7 @@ class AgentConnection {
 
     this.ws.on("error", (err) => {
       console.error(`[agent] ${this.config.name}: WS error:`, (err as Error).message);
+      this.stopHeartbeat();
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -135,6 +142,25 @@ class AgentConnection {
     }
   }
 
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      const silentMs = Date.now() - this.lastMessageAt;
+      if (silentMs > 5000) {
+        console.warn(`[agent] ${this.config.name}: no messages for ${(silentMs / 1000).toFixed(0)}s, closing zombie WS`);
+        this.stopHeartbeat();
+        this.ws?.close();
+      }
+    }, 3000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
   private scheduleReconnect() {
     if (this.reconnectTimer) return;
     console.log(`[agent] ${this.config.name}: reconnecting in ${this.reconnectDelay}ms`);
@@ -158,6 +184,7 @@ class AgentConnection {
   }
 
   disconnect() {
+    this.stopHeartbeat();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

@@ -23,6 +23,7 @@ type safeConn struct {
 func (c *safeConn) safeWrite(messageType int, data []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
+	c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	return c.Conn.WriteMessage(messageType, data)
 }
 
