@@ -23,7 +23,6 @@ type safeConn struct {
 func (c *safeConn) safeWrite(messageType int, data []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	c.Conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 	return c.Conn.WriteMessage(messageType, data)
 }
 
@@ -42,7 +41,7 @@ type ClientMessage struct {
 // Agent → Client messages
 type ServerMessage struct {
 	Type     string         `json:"type"`
-	Sessions []*SessionInfo `json:"sessions,omitempty"`
+	Sessions []*SessionInfo `json:"sessions"`
 	Session  string         `json:"session_id,omitempty"`
 	Name     string         `json:"name,omitempty"`
 	Data     string         `json:"data,omitempty"`
@@ -398,20 +397,7 @@ func (s *Server) broadcastMachineInfo() {
 	if err != nil {
 		return
 	}
-	s.broadcast(websocket.TextMessage, data)
-}
 
-func (s *Server) broadcastSessions(sessions []*SessionInfo) {
-	msg := ServerMessage{Type: "sessions", Sessions: sessions}
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-	s.broadcast(websocket.TextMessage, data)
-}
-
-// broadcast sends data to all subscribers, evicting any that fail.
-func (s *Server) broadcast(msgType int, data []byte) {
 	s.mu.Lock()
 	subs := make([]*safeConn, 0, len(s.subscribers))
 	for conn := range s.subscribers {
@@ -420,12 +406,25 @@ func (s *Server) broadcast(msgType int, data []byte) {
 	s.mu.Unlock()
 
 	for _, conn := range subs {
-		if err := conn.safeWrite(msgType, data); err != nil {
-			log.Printf("broadcast: evicting dead subscriber: %v", err)
-			s.mu.Lock()
-			delete(s.subscribers, conn)
-			s.mu.Unlock()
-			conn.Close()
-		}
+		conn.safeWrite(websocket.TextMessage, data)
+	}
+}
+
+func (s *Server) broadcastSessions(sessions []*SessionInfo) {
+	s.mu.Lock()
+	subs := make([]*safeConn, 0, len(s.subscribers))
+	for conn := range s.subscribers {
+		subs = append(subs, conn)
+	}
+	s.mu.Unlock()
+
+	msg := ServerMessage{Type: "sessions", Sessions: sessions}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+
+	for _, conn := range subs {
+		conn.safeWrite(websocket.TextMessage, data)
 	}
 }

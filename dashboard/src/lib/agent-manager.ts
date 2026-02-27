@@ -16,7 +16,6 @@ class AgentConnection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
-  private silenceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   public online = false;
   public hostname?: string;
@@ -36,14 +35,10 @@ class AgentConnection {
   }
 
   connect() {
-    // Detach old WS handlers to prevent stale close/error events
-    // from interfering with the new connection
     if (this.ws) {
-      this.ws.removeAllListeners();
       try {
         this.ws.close();
       } catch {} // already dead socket
-      this.ws = null;
     }
 
     try {
@@ -54,21 +49,14 @@ class AgentConnection {
       return;
     }
 
-    // Capture reference so handlers can detect stale connections
-    const ws = this.ws;
-
-    ws.on("open", () => {
-      if (this.ws !== ws) return;
+    this.ws.on("open", () => {
       this.online = true;
       this.reconnectDelay = 1000;
-      this.resetSilenceTimer();
       this.send({ type: "machine_info" });
       this.onUpdate();
     });
 
-    ws.on("message", (data) => {
-      if (this.ws !== ws) return;
-      this.resetSilenceTimer();
+    this.ws.on("message", (data) => {
       try {
         const msg: AgentMessage = JSON.parse(data.toString());
         this.handleMessage(msg);
@@ -77,10 +65,7 @@ class AgentConnection {
       }
     });
 
-    ws.on("close", (code, reason) => {
-      if (this.ws !== ws) return; // stale connection — ignore
-      console.log(`[agent] ${this.config.name}: WS closed (code=${code}, reason=${reason})`);
-      this.clearSilenceTimer();
+    this.ws.on("close", () => {
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -92,10 +77,7 @@ class AgentConnection {
       this.scheduleReconnect();
     });
 
-    ws.on("error", (err) => {
-      if (this.ws !== ws) return; // stale connection — ignore
-      console.error(`[agent] ${this.config.name}: WS error:`, (err as Error).message);
-      this.clearSilenceTimer();
+    this.ws.on("error", () => {
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -112,7 +94,6 @@ class AgentConnection {
     switch (msg.type) {
       case "sessions":
         if (msg.sessions) {
-          console.log(`[agent] ${this.config.name}: received ${msg.sessions.length} sessions: [${msg.sessions.map(s => `${s.id}(${s.state})`).join(", ")}]`);
           this.sessions = msg.sessions.map((s) => ({
             ...s,
             serverId: this.config.id,
@@ -146,38 +127,11 @@ class AgentConnection {
   send(msg: Record<string, unknown>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
-    } else {
-      console.warn(`[agent] send failed for ${this.config.name}: ws=${this.ws ? "exists" : "null"} readyState=${this.ws?.readyState}`);
-    }
-  }
-
-  private resetSilenceTimer() {
-    this.clearSilenceTimer();
-    this.silenceTimeout = setTimeout(() => {
-      console.warn(`[agent] ${this.config.name}: no messages for 5s — zombie WS, forcing reconnect`);
-      this.clearSilenceTimer();
-      if (this.ws) {
-        this.ws.removeAllListeners();
-        this.ws.close();
-        this.ws = null;
-      }
-      this.online = false;
-      this.sessions = [];
-      this.onUpdate();
-      this.scheduleReconnect();
-    }, 5000);
-  }
-
-  private clearSilenceTimer() {
-    if (this.silenceTimeout) {
-      clearTimeout(this.silenceTimeout);
-      this.silenceTimeout = null;
     }
   }
 
   private scheduleReconnect() {
     if (this.reconnectTimer) return;
-    console.log(`[agent] ${this.config.name}: reconnecting in ${this.reconnectDelay}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
@@ -198,7 +152,6 @@ class AgentConnection {
   }
 
   disconnect() {
-    this.clearSilenceTimer();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -474,11 +427,7 @@ class AgentManager {
 
   killSession(userId: string, serverId: string, sessionId: string) {
     const conn = this.connections.get(connKey(userId, serverId));
-    if (!conn) {
-      console.warn(`[agent-manager] killSession: no connection for ${connKey(userId, serverId)}`);
-      return;
-    }
-    console.log(`[agent-manager] killSession: sending kill_session for ${sessionId} to ${serverId}`);
+    if (!conn) return;
     conn.send({ type: "kill_session", session_id: sessionId });
     // Optimistically remove session from local state
     conn.sessions = conn.sessions.filter((s) => s.id !== sessionId);
