@@ -16,8 +16,7 @@ class AgentConnection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private lastMessageAt = 0;
+  private silenceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   public online = false;
   public hostname?: string;
@@ -54,14 +53,13 @@ class AgentConnection {
     this.ws.on("open", () => {
       this.online = true;
       this.reconnectDelay = 1000;
-      this.lastMessageAt = Date.now();
-      this.startHeartbeat();
+      this.resetSilenceTimer();
       this.send({ type: "machine_info" });
       this.onUpdate();
     });
 
     this.ws.on("message", (data) => {
-      this.lastMessageAt = Date.now();
+      this.resetSilenceTimer();
       try {
         const msg: AgentMessage = JSON.parse(data.toString());
         this.handleMessage(msg);
@@ -72,7 +70,7 @@ class AgentConnection {
 
     this.ws.on("close", (code, reason) => {
       console.log(`[agent] ${this.config.name}: WS closed (code=${code}, reason=${reason})`);
-      this.stopHeartbeat();
+      this.clearSilenceTimer();
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -86,7 +84,7 @@ class AgentConnection {
 
     this.ws.on("error", (err) => {
       console.error(`[agent] ${this.config.name}: WS error:`, (err as Error).message);
-      this.stopHeartbeat();
+      this.clearSilenceTimer();
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -142,27 +140,27 @@ class AgentConnection {
     }
   }
 
-  private startHeartbeat() {
-    this.stopHeartbeat();
-    console.log(`[agent] ${this.config.name}: heartbeat started, lastMessageAt=${this.lastMessageAt}`);
-    this.heartbeatTimer = setInterval(() => {
-      const now = Date.now();
-      const silentMs = now - this.lastMessageAt;
-      if (silentMs > 2000) {
-        console.log(`[heartbeat] ${this.config.name}: silent ${(silentMs / 1000).toFixed(1)}s, ws=${this.ws ? "exists" : "null"}, readyState=${this.ws?.readyState}`);
+  private resetSilenceTimer() {
+    this.clearSilenceTimer();
+    this.silenceTimeout = setTimeout(() => {
+      console.warn(`[agent] ${this.config.name}: no messages for 5s — zombie WS, forcing reconnect`);
+      this.clearSilenceTimer();
+      if (this.ws) {
+        this.ws.removeAllListeners();
+        this.ws.close();
+        this.ws = null;
       }
-      if (silentMs > 5000) {
-        console.warn(`[agent] ${this.config.name}: zombie detected, closing WS`);
-        this.stopHeartbeat();
-        this.ws?.close();
-      }
-    }, 3000);
+      this.online = false;
+      this.sessions = [];
+      this.onUpdate();
+      this.scheduleReconnect();
+    }, 5000);
   }
 
-  private stopHeartbeat() {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
+  private clearSilenceTimer() {
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
     }
   }
 
@@ -189,7 +187,7 @@ class AgentConnection {
   }
 
   disconnect() {
-    this.stopHeartbeat();
+    this.clearSilenceTimer();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
