@@ -6,12 +6,14 @@ import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
 import { ServerPanel } from "@/components/ServerPanel";
 import { DotGridCanvas, type PanelRect } from "@/components/DotGridCanvas";
 import { NewSessionModal } from "@/components/NewSessionModal";
+import { MobileServerList } from "@/components/MobileServerList";
 import { useCommandPaletteActions } from "@/components/CommandPalette";
 import { ArchiveStack } from "@/components/ArchiveStack";
 import { ArchiveDrawer } from "@/components/ArchiveDrawer";
 import { useSessionState } from "@/hooks/useSessionState";
 import { useNotification } from "@/hooks/useNotification";
 import { usePanelPositions } from "@/hooks/usePanelPositions";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 export default function Home() {
   const {
@@ -26,6 +28,7 @@ export default function Home() {
   const [defaultNewServerId, setDefaultNewServerId] = useState<string>();
   const [archiveOpen, setArchiveOpen] = useState(false);
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   const [metricsVisible, setMetricsVisible] = useState(true);
   const [zOrder, setZOrder] = useState<string[]>([]);
@@ -86,6 +89,38 @@ export default function Home() {
     for (const session of server.sessions) {
       if (session.state === "needs_attention") attentionCount++;
     }
+  }
+
+  if (isMobile) {
+    return (
+      <>
+        <MobileServerList
+          servers={servers}
+          attentionCount={attentionCount}
+          onOpenTerminal={(serverId, sessionId) =>
+            router.push(`/server/${serverId}/session/${sessionId}`)
+          }
+          onKillSession={(serverId, sessionId) =>
+            killSession(serverId, sessionId)
+          }
+          onNewSession={(serverId) => {
+            setDefaultNewServerId(serverId);
+            setShowNewSession(true);
+          }}
+          onNewSessionGlobal={() => {
+            setDefaultNewServerId(undefined);
+            setShowNewSession(true);
+          }}
+        />
+        <NewSessionModal
+          open={showNewSession}
+          servers={servers}
+          defaultServerId={defaultNewServerId}
+          onClose={() => setShowNewSession(false)}
+          onSubmit={createSession}
+        />
+      </>
+    );
   }
 
   return (

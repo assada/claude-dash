@@ -61,6 +61,7 @@ body {
     "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
   letter-spacing: -0.01em;
   overflow-x: hidden;
   cursor: default;
@@ -246,6 +247,24 @@ a, button, [role="button"], input[type="submit"], select, summary {
 
 .animate-shimmer {
   animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Make xterm viewport touch-scrollable, block pull-to-refresh propagation */
+.xterm-viewport {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Prevent iOS zoom on input focus — inputs must be >= 16px */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe area bottom for notched phones */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Scroll fade gradient for lists */

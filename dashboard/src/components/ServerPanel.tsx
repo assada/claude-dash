@@ -75,7 +75,7 @@ function stateLabel(state: SessionState): string {
   }
 }
 
-function SessionRow({
+export function SessionRow({
   session,
   onOpen,
   onKill,
@@ -133,7 +133,7 @@ function SessionRow({
             e.stopPropagation();
             if (confirm("Kill this session?")) onKill();
           }}
-          className="opacity-0 group-hover:opacity-100 btn-danger p-1 shrink-0"
+          className="opacity-0 max-md:opacity-60 group-hover:opacity-100 btn-danger p-1 shrink-0"
           title="Kill"
         >
           <Trash2 size={11} />

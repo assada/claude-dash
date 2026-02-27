@@ -14,6 +14,16 @@ export default function SessionPage({
   const { serverId, sessionId } = use(params);
   const router = useRouter();
   const { servers } = useSessionState();
+
+  // Allow pinch-to-zoom on terminal page (override layout viewport)
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    const original = meta?.getAttribute("content") || "";
+    meta?.setAttribute("content", "width=device-width, initial-scale=1");
+    return () => {
+      if (meta && original) meta.setAttribute("content", original);
+    };
+  }, []);
   const [resolved, setResolved] = useState<{
     sessionName: string;
     serverName: string;

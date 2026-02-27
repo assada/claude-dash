@@ -100,7 +100,7 @@ export function NewSessionModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 flex items-center justify-center z-50 bg-black/60"
+          className="fixed inset-0 flex items-end md:items-center justify-center z-50 bg-black/60"
           onClick={onClose}
         >
           <motion.div
@@ -112,7 +112,7 @@ export function NewSessionModal({
               opacity: { duration: 0.15 },
               scale: { type: "spring", stiffness: 400, damping: 25 },
             }}
-            className="surface w-full max-w-md p-6"
+            className="surface w-full max-w-md mx-4 p-6"
             onClick={(e) => e.stopPropagation()}
           >
           <div className="flex items-center justify-between mb-5">

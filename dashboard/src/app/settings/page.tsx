@@ -121,7 +121,7 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <main className="px-6 py-6 max-w-3xl mx-auto relative z-10">
+      <main className="px-4 md:px-6 py-6 max-w-3xl mx-auto relative z-10">
         <div className="flex items-center justify-between mb-4">
           <span className="text-[15px] font-semibold text-text-secondary">Servers</span>
           <button
@@ -146,7 +146,7 @@ export default function SettingsPage() {
               server.agentVersion !== EXPECTED_VERSION;
 
             return (
-              <div key={server.id} className="panel flex items-center gap-3 p-4">
+              <div key={server.id} className="panel flex flex-col sm:flex-row sm:items-center gap-3 p-4">
                 <div className="flex-1 min-w-0">
                   <div className="text-[14px] font-medium text-text-primary">{server.name}</div>
                   <div className="text-[11px] text-text-faint mt-0.5 flex items-center gap-2">
@@ -240,7 +240,7 @@ export default function SettingsPage() {
                   className="input"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="label">Tailscale IP / Host</label>
                   <input
