@@ -77,7 +77,7 @@ export function CommandPaletteProvider({
   // Cmd+K / Ctrl+K
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "i") {
         e.preventDefault();
         setOpen((prev) => !prev);
       }

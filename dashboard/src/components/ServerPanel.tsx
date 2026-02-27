@@ -329,10 +329,14 @@ export function ServerPanel({
   const hasMetrics = !!(server.online && server.metrics && showMetrics);
 
   useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-  }, [server.sessions.length, hasMetrics]);
+    const el = contentRef.current;
+    if (!el) return;
+    const update = () => setContentHeight(el.scrollHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Report viewport rect to dot grid
   const syncRect = useCallback(() => {
