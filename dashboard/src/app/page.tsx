@@ -98,7 +98,7 @@ export default function Home() {
 
       {/* Top bar — transparent, floating */}
       <header className="fixed top-0 left-0 right-0 z-40 pointer-events-none">
-        <div className="flex items-center gap-3 px-6 py-3 pointer-events-auto">
+        <div className="flex items-center gap-3 px-6 py-3">
           <div className="icon-box w-9 h-9">
             <Terminal size={18} className="text-text-secondary" />
           </div>
@@ -112,7 +112,7 @@ export default function Home() {
             </span>
           )}
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 pointer-events-auto">
             {servers.length > 0 && (
               <button
                 onClick={arrangeAll}
