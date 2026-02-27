@@ -182,8 +182,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				log.Printf("kill_session error: %v", err)
 				s.sendError(conn, err.Error())
 			} else {
-				log.Printf("kill_session: success, triggering poll")
-				s.poller.poll()
+				log.Printf("kill_session: success")
+				s.poller.RemoveSession(msg.SessionID)
+				s.broadcastSessions(s.poller.GetSessions())
 			}
 
 		case "attach":
