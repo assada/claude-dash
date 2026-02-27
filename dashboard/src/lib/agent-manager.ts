@@ -65,7 +65,8 @@ class AgentConnection {
       }
     });
 
-    this.ws.on("close", () => {
+    this.ws.on("close", (code, reason) => {
+      console.log(`[agent] ${this.config.name}: WS closed (code=${code}, reason=${reason})`);
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -77,7 +78,8 @@ class AgentConnection {
       this.scheduleReconnect();
     });
 
-    this.ws.on("error", () => {
+    this.ws.on("error", (err) => {
+      console.error(`[agent] ${this.config.name}: WS error:`, (err as Error).message);
       this.online = false;
       this.ws = null;
       this.sessions = this.sessions.map((s) => ({
@@ -135,6 +137,7 @@ class AgentConnection {
 
   private scheduleReconnect() {
     if (this.reconnectTimer) return;
+    console.log(`[agent] ${this.config.name}: reconnecting in ${this.reconnectDelay}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
