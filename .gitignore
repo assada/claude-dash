@@ -10,7 +10,7 @@ dashboard/.next/
 .env
 config/config.yaml
 
-# LLM
+# Scratch / notes
 CLAUDE.md
 PLAN.md
 
