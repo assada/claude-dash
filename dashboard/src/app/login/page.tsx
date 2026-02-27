@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { auth, signIn } from "@/lib/auth";
 import { Terminal } from "lucide-react";
 
@@ -8,6 +9,11 @@ const enableGuest = process.env.ENABLE_GUEST !== "false";
 export default async function LoginPage() {
   const session = await auth();
   if (session) redirect("/");
+
+  const h = await headers();
+  const host = h.get("host") || "localhost:3000";
+  const proto = h.get("x-forwarded-proto") || "http";
+  const origin = `${proto}://${host}`;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-0">
@@ -28,7 +34,7 @@ export default async function LoginPage() {
             <form
               action={async () => {
                 "use server";
-                await signIn("github", { redirectTo: "/" });
+                await signIn("github", { redirectTo: `${origin}/` });
               }}
             >
               <button
@@ -47,7 +53,7 @@ export default async function LoginPage() {
             <form
               action={async () => {
                 "use server";
-                await signIn("guest", { redirectTo: "/" });
+                await signIn("guest", { redirectTo: `${origin}/` });
               }}
             >
               <button

@@ -43,6 +43,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
   session: { strategy: "jwt" },
   callbacks: {
+    redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        new URL(url);
+        return url;
+      } catch {
+        return baseUrl;
+      }
+    },
     jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
