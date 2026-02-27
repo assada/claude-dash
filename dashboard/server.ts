@@ -157,12 +157,6 @@ app.prepare().then(() => {
           }
           break;
 
-        case "clear_dead_sessions":
-          if (msg.serverId) {
-            agentManager.clearDeadSessions(userId, msg.serverId);
-          }
-          break;
-
         case "terminal_attach":
           if (msg.serverId && msg.sessionId) {
             if (terminalProxy) {
@@ -186,11 +180,6 @@ app.prepare().then(() => {
                   ws.send(
                     JSON.stringify({ type: "terminal_output", data })
                   );
-                }
-              },
-              (data) => {
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: "scrollback", data }));
                 }
               },
               (errMsg) => {
@@ -226,18 +215,6 @@ app.prepare().then(() => {
           }
           break;
 
-        case "get_scrollback":
-          if (msg.serverId && msg.sessionId) {
-            const conn = agentManager.getConnection(userId, msg.serverId);
-            if (conn) {
-              conn.getScrollback(msg.sessionId, (data) => {
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: "scrollback", data }));
-                }
-              });
-            }
-          }
-          break;
       }
     }
 

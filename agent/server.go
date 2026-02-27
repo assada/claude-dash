@@ -62,20 +62,18 @@ type ServerMessage struct {
 }
 
 type Server struct {
-	config     *Config
-	poller     *Poller
-	scrollback *ScrollbackManager
-	upgrader   websocket.Upgrader
+	config   *Config
+	poller   *Poller
+	upgrader websocket.Upgrader
 
 	mu          sync.Mutex
 	subscribers map[*safeConn]bool
 }
 
-func newServer(config *Config, poller *Poller, scrollback *ScrollbackManager) *Server {
+func newServer(config *Config, poller *Poller) *Server {
 	s := &Server{
 		config:      config,
 		poller:      poller,
-		scrollback:  scrollback,
 		subscribers: make(map[*safeConn]bool),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -183,18 +181,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				s.sendError(conn, err.Error())
 			}
 
-		case "clear_dead_sessions":
-			// Get dead session IDs before clearing
-			sessions := s.poller.GetSessions()
-			for _, sess := range sessions {
-				if sess.State == StateDead {
-					s.scrollback.RemoveScrollback(sess.ID)
-				}
-			}
-			s.poller.ClearDeadSessions()
-			// Broadcast updated state immediately
-			s.broadcastSessions(s.poller.GetSessions())
-
 		case "attach":
 			if msg.SessionID == "" {
 				s.sendError(conn, "session_id required")
@@ -237,22 +223,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if msg.Cols > 0 && msg.Rows > 0 {
 				terminal.Resize(uint16(msg.Cols), uint16(msg.Rows))
 			}
-
-		case "get_scrollback":
-			if msg.SessionID == "" {
-				s.sendError(conn, "session_id required")
-				continue
-			}
-			text, err := s.scrollback.GetScrollback(msg.SessionID)
-			if err != nil {
-				s.sendError(conn, err.Error())
-				continue
-			}
-			encoded := base64.StdEncoding.EncodeToString([]byte(text))
-			s.sendMessage(conn, ServerMessage{
-				Type: "scrollback",
-				Data: encoded,
-			})
 
 		case "machine_info":
 			hostname, _ := os.Hostname()

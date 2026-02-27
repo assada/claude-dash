@@ -14,8 +14,6 @@ import {
   Terminal,
   Plus,
   LayoutGrid,
-  Archive,
-  Trash2,
   Settings,
   Search,
   Activity,
@@ -32,8 +30,6 @@ import type { ServerStatus, SessionState } from "@/lib/types";
 interface PageActions {
   onNewSession?: (serverId?: string) => void;
   onArrange?: () => void;
-  onOpenArchive?: () => void;
-  onClearArchive?: () => void;
   onToggleMetrics?: () => boolean | void;
 }
 
@@ -129,7 +125,7 @@ function PaletteUI({
   onClose: () => void;
   pageActions: PageActions;
 }) {
-  const { servers, clearArchive } = useSessionStateContext();
+  const { servers } = useSessionStateContext();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -177,23 +173,6 @@ function PaletteUI({
     });
 
     items.push({
-      id: "archive",
-      label: "Open Archive",
-      icon: <Archive size={16} className="text-text-muted" />,
-      action: () => pageActions.onOpenArchive?.(),
-    });
-
-    items.push({
-      id: "clear-archive",
-      label: "Clear Archive",
-      icon: <Trash2 size={16} className="text-text-muted" />,
-      action: () =>
-        pageActions.onClearArchive
-          ? pageActions.onClearArchive()
-          : clearArchive(),
-    });
-
-    items.push({
       id: "toggle-metrics",
       label: "Toggle Server Metrics",
       icon: <Activity size={16} className="text-text-muted" />,
@@ -228,7 +207,7 @@ function PaletteUI({
     }
 
     return items;
-  }, [servers, pageActions, clearArchive, router]);
+  }, [servers, pageActions, router]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands;

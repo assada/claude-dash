@@ -235,7 +235,7 @@ export function TerminalView({
         setConnected(true);
         const isDead = initialStateRef.current === "dead";
         if (isDead) {
-          ws.send(JSON.stringify({ type: "get_scrollback", serverId, sessionId }));
+          t.write("\r\n\x1b[1;31m--- Session ended ---\x1b[0m\r\n");
         } else {
           const cols = t.cols || 200;
           const rows = t.rows || 50;
@@ -248,13 +248,6 @@ export function TerminalView({
         let msg;
         try { msg = JSON.parse(event.data); } catch { return; }
 
-        if (msg.type === "scrollback" && msg.data) {
-          const bytes = decodeBase64(msg.data);
-          t.write(new TextDecoder().decode(bytes));
-          if (initialStateRef.current === "dead") {
-            t.write("\r\n\x1b[1;31m--- Session ended ---\x1b[0m\r\n");
-          }
-        }
         if (msg.type === "terminal_output" && msg.data) {
           t.write(decodeBase64(msg.data));
         }

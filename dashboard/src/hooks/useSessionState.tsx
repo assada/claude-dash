@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from "react";
-import type { ServerStatus, ArchivedSession } from "@/lib/types";
+import type { ServerStatus } from "@/lib/types";
 
 type SessionStateValue = ReturnType<typeof useSessionState>;
 
@@ -26,79 +26,14 @@ export function useSessionStateContext(): SessionStateValue {
 
 export function useSessionState() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
-  const [archivedSessions, setArchivedSessions] = useState<ArchivedSession[]>(
-    []
-  );
-  const archivedIdsRef = useRef<Set<string>>(new Set());
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const processServers = useCallback((incoming: ServerStatus[]) => {
-    const now = Date.now();
-    const newArchived: ArchivedSession[] = [];
-
-    // Find newly dead sessions
-    for (const server of incoming) {
-      for (const session of server.sessions) {
-        if (
-          session.state === "dead" &&
-          !archivedIdsRef.current.has(session.id)
-        ) {
-          archivedIdsRef.current.add(session.id);
-          newArchived.push({ ...session, archivedAt: now });
-        }
-      }
-    }
-
-    // Add new archived sessions
-    if (newArchived.length > 0) {
-      setArchivedSessions((prev) => [...prev, ...newArchived]);
-    }
-
-    // Filter dead+archived sessions out of servers
     const filtered = incoming.map((server) => ({
       ...server,
-      sessions: server.sessions.filter(
-        (s) => !(s.state === "dead" && archivedIdsRef.current.has(s.id))
-      ),
+      sessions: server.sessions.filter((s) => s.state !== "dead"),
     }));
-
-    // Check if any session resurrected (came back alive after being archived)
-    for (const server of incoming) {
-      for (const session of server.sessions) {
-        if (
-          session.state !== "dead" &&
-          archivedIdsRef.current.has(session.id)
-        ) {
-          archivedIdsRef.current.delete(session.id);
-          setArchivedSessions((prev) =>
-            prev.filter((a) => a.id !== session.id)
-          );
-        }
-      }
-    }
-
-    // Remove archived sessions that no longer exist in incoming data
-    // (agent already deleted them via clear_dead_sessions)
-    const allIncomingIds = new Set<string>();
-    for (const server of incoming) {
-      for (const session of server.sessions) {
-        allIncomingIds.add(session.id);
-      }
-    }
-    setArchivedSessions((prev) => {
-      const filtered = prev.filter((a) => allIncomingIds.has(a.id));
-      if (filtered.length !== prev.length) {
-        // Clean up refs for removed sessions
-        for (const a of prev) {
-          if (!allIncomingIds.has(a.id)) {
-            archivedIdsRef.current.delete(a.id);
-          }
-        }
-        return filtered;
-      }
-      return prev;
-    });
 
     setServers((prev) => {
       if (
@@ -194,40 +129,12 @@ export function useSessionState() {
     []
   );
 
-  const archivedRef = useRef(archivedSessions);
-  archivedRef.current = archivedSessions;
-
-  const clearArchive = useCallback(() => {
-    // Collect server IDs before clearing
-    const serverIds = new Set<string>();
-    for (const s of archivedRef.current) {
-      serverIds.add(s.serverId);
-    }
-
-    // Clear locally immediately
-    archivedIdsRef.current.clear();
-    setArchivedSessions([]);
-
-    // Tell each agent server to clean up scrollback files
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      for (const serverId of serverIds) {
-        ws.send(
-          JSON.stringify({ type: "clear_dead_sessions", serverId })
-        );
-      }
-    }
-  }, []);
-
   return useMemo(
     () => ({
       servers,
-      archivedSessions,
-      archiveCount: archivedSessions.length,
       createSession,
       killSession,
-      clearArchive,
     }),
-    [servers, archivedSessions, createSession, killSession, clearArchive]
+    [servers, createSession, killSession]
   );
 }

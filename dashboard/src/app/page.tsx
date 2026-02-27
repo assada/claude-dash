@@ -9,8 +9,6 @@ import { DotGridCanvas, type PanelRect } from "@/components/DotGridCanvas";
 import { NewSessionModal } from "@/components/NewSessionModal";
 import { MobileServerList } from "@/components/MobileServerList";
 import { useCommandPaletteActions } from "@/components/CommandPalette";
-import { ArchiveStack } from "@/components/ArchiveStack";
-import { ArchiveDrawer } from "@/components/ArchiveDrawer";
 import { useSessionStateContext } from "@/hooks/useSessionState";
 import { useNotification } from "@/hooks/useNotification";
 import { usePanelPositions } from "@/hooks/usePanelPositions";
@@ -19,15 +17,11 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 export default function Home() {
   const {
     servers,
-    archivedSessions,
-    archiveCount,
     createSession,
     killSession,
-    clearArchive,
   } = useSessionStateContext();
   const [showNewSession, setShowNewSession] = useState(false);
   const [defaultNewServerId, setDefaultNewServerId] = useState<string>();
-  const [archiveOpen, setArchiveOpen] = useState(false);
   const router = useRouter();
   const isMobile = useIsMobile();
 
@@ -71,8 +65,6 @@ export default function Home() {
       setShowNewSession(true);
     },
     onArrange: arrangeAll,
-    onOpenArchive: () => setArchiveOpen(true),
-    onClearArchive: clearArchive,
     onToggleMetrics: toggleMetrics,
   });
 
@@ -89,7 +81,6 @@ export default function Home() {
 
   const handleOpenTerminal = useCallback(
     (serverId: string, sessionId: string) => {
-      setArchiveOpen(false);
       router.push(`/server/${serverId}/session/${sessionId}`);
     },
     [router]
@@ -107,14 +98,6 @@ export default function Home() {
 
   const handleCloseNewSession = useCallback(() => {
     setShowNewSession(false);
-  }, []);
-
-  const handleOpenArchive = useCallback(() => {
-    setArchiveOpen(true);
-  }, []);
-
-  const handleCloseArchive = useCallback(() => {
-    setArchiveOpen(false);
   }, []);
 
   const handleMobileOpenTerminal = useCallback(
@@ -215,19 +198,6 @@ export default function Home() {
             );
           })
         )}
-
-      <ArchiveStack
-        count={archiveCount}
-        onClick={handleOpenArchive}
-      />
-
-      <ArchiveDrawer
-        open={archiveOpen}
-        sessions={archivedSessions}
-        onClose={handleCloseArchive}
-        onClear={clearArchive}
-        onOpenTerminal={handleOpenTerminal}
-      />
 
       <NewSessionModal
         open={showNewSession}

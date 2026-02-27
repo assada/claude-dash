@@ -166,7 +166,6 @@ class AgentConnection {
   createTerminalProxy(
     sessionId: string,
     onOutput: (data: string) => void,
-    onScrollback: (data: string) => void,
     onError: (msg: string) => void,
     cols?: number,
     rows?: number
@@ -196,8 +195,6 @@ class AgentConnection {
         const msg: AgentMessage = JSON.parse(data.toString());
         if (msg.type === "output" && msg.data) {
           onOutput(msg.data);
-        } else if (msg.type === "scrollback" && msg.data) {
-          onScrollback(msg.data);
         } else if (msg.type === "error" && msg.message) {
           onError(msg.message);
         }
@@ -234,32 +231,6 @@ class AgentConnection {
       },
     };
   }
-
-  getScrollback(sessionId: string, callback: (data: string) => void) {
-    const sbWs = new WebSocket(this.wsUrl);
-
-    sbWs.on("open", () => {
-      sbWs.send(
-        JSON.stringify({ type: "get_scrollback", session_id: sessionId })
-      );
-    });
-
-    sbWs.on("message", (data) => {
-      try {
-        const msg: AgentMessage = JSON.parse(data.toString());
-        if (msg.type === "scrollback" && msg.data) {
-          callback(msg.data);
-          sbWs.close();
-        } else if (msg.type === "error") {
-          sbWs.close();
-        }
-      } catch (e) {
-        console.warn(`[scrollback] Failed to parse message:`, (e as Error).message);
-      }
-    });
-
-    sbWs.on("error", () => sbWs.close());
-  }
 }
 
 // Key format: "userId:serverId"
@@ -293,7 +264,6 @@ class AgentManager {
             conn.send({ type: "kill_session", session_id: session.id });
           }
         }
-        conn.send({ type: "clear_dead_sessions" });
         conn.disconnect();
         this.connections.delete(key);
       }
@@ -459,15 +429,6 @@ class AgentManager {
     const conn = this.connections.get(connKey(userId, serverId));
     if (!conn) return;
     conn.send({ type: "kill_session", session_id: sessionId });
-  }
-
-  clearDeadSessions(userId: string, serverId: string) {
-    const conn = this.connections.get(connKey(userId, serverId));
-    if (!conn) return;
-
-    conn.sessions = conn.sessions.filter((s) => s.state !== "dead");
-    this.notifyUser(userId);
-    conn.send({ type: "clear_dead_sessions" });
   }
 
   updateAgent(userId: string, serverId: string) {

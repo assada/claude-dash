@@ -17,10 +17,6 @@ export interface SessionInfo {
   serverName: string;
 }
 
-export interface ArchivedSession extends SessionInfo {
-  archivedAt: number;
-}
-
 export interface ServerMetrics {
   cpuPercent: number;
   memTotal: number;

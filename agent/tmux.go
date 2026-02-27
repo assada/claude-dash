@@ -134,25 +134,11 @@ func killTmuxSession(sessionID string) error {
 	return nil
 }
 
-func hasTmuxSession(sessionID string) bool {
-	cmd := exec.Command("tmux", "has-session", "-t", sessionID)
-	return cmd.Run() == nil
-}
-
 func capturePaneVisible(sessionID string) (string, error) {
 	cmd := exec.Command("tmux", "capture-pane", "-t", sessionID, "-p", "-J")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("tmux capture-pane: %s: %w", string(out), err)
-	}
-	return string(out), nil
-}
-
-func capturePaneScrollback(sessionID string) (string, error) {
-	cmd := exec.Command("tmux", "capture-pane", "-t", sessionID, "-p", "-J", "-S", "-50000")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("tmux capture-pane scrollback: %s: %w", string(out), err)
 	}
 	return string(out), nil
 }

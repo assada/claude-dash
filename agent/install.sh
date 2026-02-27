@@ -4,7 +4,6 @@ set -e
 REPO="assada/claude-dash"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CONFIG_DIR="$HOME/.claude-dashboard"
-SCROLLBACK_DIR="$CONFIG_DIR/scrollback"
 
 # Colors
 RED='\033[0;31m'
@@ -182,7 +181,6 @@ ok "Binary installed: ${INSTALL_DIR}/ccdash-agent"
 # ── Config ───────────────────────────────────────────────────────
 
 mkdir -p "$CONFIG_DIR"
-mkdir -p "$SCROLLBACK_DIR"
 
 # Build workdirs YAML
 WORKDIRS_YAML=""
@@ -216,9 +214,7 @@ ${BIND_LINE}
 port: ${PORT}
 token: "${TOKEN}"
 workdirs:
-${WORKDIRS_YAML}scrollback_dir: ${SCROLLBACK_DIR}
-scrollback_dump_interval: 30s
-history_limit: 50000
+${WORKDIRS_YAML}history_limit: 50000
 ENDCFG
 
     ok "Config written: $CONFIG_DIR/agent.yaml"

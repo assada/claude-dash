@@ -62,18 +62,12 @@ func main() {
 
 	listenAddr := fmt.Sprintf("%s:%d", bindAddr, config.Port)
 
-	// Start scrollback manager
-	scrollback := newScrollbackManager(config.GetScrollbackDir(), config.GetDumpInterval())
-	if err := scrollback.Start(); err != nil {
-		log.Fatalf("Failed to start scrollback manager: %v", err)
-	}
-
 	// Start poller
 	poller := newPoller()
 	poller.Start(500 * 1000000) // 500ms
 
 	// Create server
-	srv := newServer(config, poller, scrollback)
+	srv := newServer(config, poller)
 
 	// Start HTTP server
 	listener, err := net.Listen("tcp", listenAddr)
@@ -87,7 +81,6 @@ func main() {
 	} else {
 		log.Printf("WARNING: No auth token configured")
 	}
-	log.Printf("Scrollback dir: %s", config.GetScrollbackDir())
 
 	// Graceful shutdown
 	go func() {
@@ -96,7 +89,6 @@ func main() {
 		<-sigCh
 		log.Println("Shutting down...")
 		poller.Stop()
-		scrollback.Stop()
 		listener.Close()
 		os.Exit(0)
 	}()
