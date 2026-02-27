@@ -94,6 +94,7 @@ class AgentConnection {
     switch (msg.type) {
       case "sessions":
         if (msg.sessions) {
+          console.log(`[agent] ${this.config.name}: received ${msg.sessions.length} sessions: [${msg.sessions.map(s => `${s.id}(${s.state})`).join(", ")}]`);
           this.sessions = msg.sessions.map((s) => ({
             ...s,
             serverId: this.config.id,
@@ -435,6 +436,9 @@ class AgentManager {
     }
     console.log(`[agent-manager] killSession: sending kill_session for ${sessionId} to ${serverId}`);
     conn.send({ type: "kill_session", session_id: sessionId });
+    // Optimistically remove session from local state
+    conn.sessions = conn.sessions.filter((s) => s.id !== sessionId);
+    this.notifyUser(userId);
   }
 
   updateAgent(userId: string, serverId: string) {
