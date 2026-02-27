@@ -49,6 +49,7 @@ func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPe
 		"exit-unattached":        "off",   // keep session alive when we detach
 		"destroy-unattached":     "off",
 		"allow-passthrough":      "on",    // let apps use passthrough sequences
+		"extended-keys":          "on",    // pass CSI u modified keys (e.g. Shift+Enter) to apps
 		"visual-activity":        "off",   // no flashing "Activity in window N"
 		"visual-bell":            "off",
 		"visual-silence":         "off",

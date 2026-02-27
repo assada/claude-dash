@@ -105,6 +105,19 @@ export function TerminalView({
       fitAddon.fit();
       term.focus();
 
+      // Shift+Enter: xterm.js doesn't produce a distinct sequence by default.
+      // Send CSI u encoding (\x1b[13;2u) so Claude Code can detect it.
+      term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+        if (e.key === "Enter" && e.shiftKey && e.type === "keydown") {
+          const ws = wsRef.current;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "terminal_input", data: encodeBase64("\x1b[13;2u") }));
+          }
+          return false;
+        }
+        return true;
+      });
+
       termRef.current = term;
       fitRef.current = fitAddon;
 
