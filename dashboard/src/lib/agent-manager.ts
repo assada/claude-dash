@@ -144,11 +144,15 @@ class AgentConnection {
 
   private startHeartbeat() {
     this.stopHeartbeat();
-    console.log(`[agent] ${this.config.name}: heartbeat started`);
+    console.log(`[agent] ${this.config.name}: heartbeat started, lastMessageAt=${this.lastMessageAt}`);
     this.heartbeatTimer = setInterval(() => {
-      const silentMs = Date.now() - this.lastMessageAt;
+      const now = Date.now();
+      const silentMs = now - this.lastMessageAt;
+      if (silentMs > 2000) {
+        console.log(`[heartbeat] ${this.config.name}: silent ${(silentMs / 1000).toFixed(1)}s, ws=${this.ws ? "exists" : "null"}, readyState=${this.ws?.readyState}`);
+      }
       if (silentMs > 5000) {
-        console.warn(`[agent] ${this.config.name}: no messages for ${(silentMs / 1000).toFixed(0)}s, closing zombie WS`);
+        console.warn(`[agent] ${this.config.name}: zombie detected, closing WS`);
         this.stopHeartbeat();
         this.ws?.close();
       }
