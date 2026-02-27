@@ -1,10 +1,9 @@
 "use client";
 
-import { use, useEffect, useState, useCallback } from "react";
+import { use, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TerminalView } from "@/components/TerminalView";
 import { useSessionStateContext } from "@/hooks/useSessionState";
-import type { SessionState } from "@/lib/types";
 
 export default function SessionPage({
   params,
@@ -24,21 +23,16 @@ export default function SessionPage({
       if (meta && original) meta.setAttribute("content", original);
     };
   }, []);
-  const [resolved, setResolved] = useState<{
-    sessionName: string;
-    serverName: string;
-    sessionState: SessionState;
-  } | null>(null);
 
-  useEffect(() => {
+  const resolved = useMemo(() => {
     const server = servers.find((s) => s.id === serverId);
-    if (!server) return;
+    if (!server) return null;
     const session = server.sessions.find((s) => s.id === sessionId);
-    setResolved({
+    return {
       sessionName: session?.name || sessionId,
       serverName: server.name,
-      sessionState: session?.state || "dead",
-    });
+      sessionState: session?.state || ("dead" as const),
+    };
   }, [servers, serverId, sessionId]);
 
   const handleBack = useCallback(() => {

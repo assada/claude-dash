@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from "react";
 import type { ServerStatus, ArchivedSession } from "@/lib/types";
 
 type SessionStateValue = ReturnType<typeof useSessionState>;
@@ -100,7 +100,34 @@ export function useSessionState() {
       return prev;
     });
 
-    setServers(filtered);
+    setServers((prev) => {
+      if (
+        prev.length === filtered.length &&
+        prev.every((s, i) => {
+          const f = filtered[i];
+          return (
+            s.id === f.id &&
+            s.online === f.online &&
+            s.sessions.length === f.sessions.length &&
+            s.sessions.every(
+              (ss, j) =>
+                ss.id === f.sessions[j]?.id &&
+                ss.state === f.sessions[j]?.state &&
+                ss.last_line === f.sessions[j]?.last_line &&
+                ss.state_changed_at === f.sessions[j]?.state_changed_at
+            ) &&
+            s.agentVersion === f.agentVersion &&
+            s.metrics?.cpuPercent === f.metrics?.cpuPercent &&
+            s.metrics?.memUsed === f.metrics?.memUsed &&
+            s.metrics?.diskUsed === f.metrics?.diskUsed &&
+            s.metrics?.uptimeSecs === f.metrics?.uptimeSecs
+          );
+        })
+      ) {
+        return prev;
+      }
+      return filtered;
+    });
   }, []);
 
   const connect = useCallback(() => {
@@ -167,10 +194,13 @@ export function useSessionState() {
     []
   );
 
+  const archivedRef = useRef(archivedSessions);
+  archivedRef.current = archivedSessions;
+
   const clearArchive = useCallback(() => {
     // Collect server IDs before clearing
     const serverIds = new Set<string>();
-    for (const s of archivedSessions) {
+    for (const s of archivedRef.current) {
       serverIds.add(s.serverId);
     }
 
@@ -187,14 +217,17 @@ export function useSessionState() {
         );
       }
     }
-  }, [archivedSessions]);
+  }, []);
 
-  return {
-    servers,
-    archivedSessions,
-    archiveCount: archivedSessions.length,
-    createSession,
-    killSession,
-    clearArchive,
-  };
+  return useMemo(
+    () => ({
+      servers,
+      archivedSessions,
+      archiveCount: archivedSessions.length,
+      createSession,
+      killSession,
+      clearArchive,
+    }),
+    [servers, archivedSessions, createSession, killSession, clearArchive]
+  );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
 import { EXPECTED_VERSION } from "@/lib/format";
@@ -122,9 +123,9 @@ export default function SettingsPage() {
 
       <header className="sticky top-0 z-40 backdrop-blur bg-surface-0/85 border-b border-surface-1">
         <div className="flex items-center gap-3 px-6 py-3">
-          <a href="/" className="btn-ghost flex items-center gap-1 text-[13px] no-underline">
+          <Link href="/" className="btn-ghost flex items-center gap-1 text-[13px] no-underline">
             <ArrowLeft size={14} /> Back
-          </a>
+          </Link>
           <span className="text-[17px] font-semibold text-text-secondary">Settings</span>
         </div>
       </header>

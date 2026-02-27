@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 
 const STORAGE_KEY = "panel-positions";
 const PANEL_WIDTH = 320;
@@ -60,6 +60,8 @@ function arrange(
 export function usePanelPositions(serverIds: string[]) {
   const [positions, setPositions] = useState<Record<string, PanelPosition>>({});
   const initializedRef = useRef(false);
+  const serverIdsRef = useRef(serverIds);
+  serverIdsRef.current = serverIds;
 
   // Initialize: load saved positions, auto-arrange any missing panels
   useEffect(() => {
@@ -120,10 +122,13 @@ export function usePanelPositions(serverIds: string[]) {
   const arrangeAll = useCallback(() => {
     const width =
       typeof window !== "undefined" ? window.innerWidth : 1200;
-    const arranged = arrange(serverIds, width);
+    const arranged = arrange(serverIdsRef.current, width);
     setPositions(arranged);
     save(arranged);
-  }, [serverIds]);
+  }, []);
 
-  return { positions, updatePosition, arrangeAll };
+  return useMemo(
+    () => ({ positions, updatePosition, arrangeAll }),
+    [positions, updatePosition, arrangeAll]
+  );
 }

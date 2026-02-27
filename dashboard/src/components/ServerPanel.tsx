@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GripVertical,
@@ -144,9 +144,12 @@ function formatBytes(bytes: number): string {
 
 const GRAPH_BARS = 8;
 
-// Module-level cache — survives SPA navigation, cleared only on full reload
+// Global cache — survives module re-evaluation by bundler across route changes
 type MetricsHistory = { cpu: number[]; mem: number[]; disk: number[]; key: string };
-const metricsCache = new Map<string, MetricsHistory>();
+const METRICS_KEY = Symbol.for("metricsCache");
+const _g = globalThis as unknown as Record<symbol, Map<string, MetricsHistory>>;
+if (!_g[METRICS_KEY]) _g[METRICS_KEY] = new Map();
+const metricsCache = _g[METRICS_KEY];
 
 function barColor(pct: number): string {
   if (pct < 60) return "bg-ok";
@@ -268,7 +271,7 @@ function clampVelocity(vx: number, vy: number) {
   };
 }
 
-export function ServerPanel({
+export const ServerPanel = memo(function ServerPanel({
   server,
   position,
   showMetrics = true,
@@ -277,18 +280,18 @@ export function ServerPanel({
   onKillSession,
   onNewSession,
   onBringToFront,
-  reportRect,
+  onReportRect,
   zIndex,
 }: {
   server: ServerStatus;
   position: PanelPosition;
   showMetrics?: boolean;
-  onPositionChange: (pos: PanelPosition) => void;
-  onOpenTerminal: (sessionId: string) => void;
-  onKillSession: (sessionId: string) => void;
-  onNewSession: () => void;
-  onBringToFront: () => void;
-  reportRect: (rect: PanelRect) => void;
+  onPositionChange: (serverId: string, pos: PanelPosition) => void;
+  onOpenTerminal: (serverId: string, sessionId: string) => void;
+  onKillSession: (serverId: string, sessionId: string) => void;
+  onNewSession: (serverId: string) => void;
+  onBringToFront: (serverId: string) => void;
+  onReportRect: (serverId: string, rect: PanelRect) => void;
   zIndex: number;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -327,13 +330,13 @@ export function ServerPanel({
   const syncRect = useCallback(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    reportRect({
+    onReportRect(server.id, {
       x: posRef.current.x,
       y: posRef.current.y,
       w: PANEL_WIDTH,
       h: panel.offsetHeight,
     });
-  }, [reportRect]);
+  }, [onReportRect, server.id]);
 
   // ResizeObserver: keep dot grid in sync with actual panel height
   useEffect(() => {
@@ -510,14 +513,14 @@ export function ServerPanel({
         } else {
           isAnimatingRef.current = false;
           animFrameRef.current = null;
-          onPositionChange({ x, y });
+          onPositionChange(server.id, { x, y });
         }
       };
 
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = requestAnimationFrame(step);
     },
-    [onPositionChange, syncRect]
+    [onPositionChange, syncRect, server.id]
   );
 
   // --- Drag handlers ---
@@ -536,7 +539,7 @@ export function ServerPanel({
       const panel = panelRef.current;
       if (!panel) return;
 
-      onBringToFront();
+      onBringToFront(server.id);
       setIsDragging(true);
 
       const grabOffsetX = e.clientX - posRef.current.x;
@@ -596,7 +599,7 @@ export function ServerPanel({
         if (speed > MOMENTUM_THRESHOLD) {
           startMomentum(posRef.current.x, posRef.current.y, vel.x, vel.y);
         } else {
-          onPositionChange(posRef.current);
+          onPositionChange(server.id, posRef.current);
         }
       };
 
@@ -604,7 +607,7 @@ export function ServerPanel({
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [onBringToFront, calculateVelocity, startMomentum, onPositionChange, syncRect]
+    [onBringToFront, calculateVelocity, startMomentum, onPositionChange, syncRect, server.id]
   );
 
   return (
@@ -620,7 +623,7 @@ export function ServerPanel({
         touchAction: "none",
         userSelect: "none",
       }}
-      onPointerDown={() => onBringToFront()}
+      onPointerDown={() => onBringToFront(server.id)}
     >
       {/* Header — drag handle */}
       <div
@@ -668,7 +671,7 @@ export function ServerPanel({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onNewSession();
+            onNewSession(server.id);
           }}
           className="btn-ghost p-1 shrink-0"
           title="New session"
@@ -714,8 +717,8 @@ export function ServerPanel({
                 <SessionRow
                   key={session.id}
                   session={session}
-                  onOpen={() => onOpenTerminal(session.id)}
-                  onKill={() => onKillSession(session.id)}
+                  onOpen={() => onOpenTerminal(server.id, session.id)}
+                  onKill={() => onKillSession(server.id, session.id)}
                 />
               ))}
               {server.sessions.length === 0 && (
@@ -733,4 +736,4 @@ export function ServerPanel({
       </motion.div>
     </div>
   );
-}
+});

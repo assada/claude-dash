@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
 import { ServerPanel } from "@/components/ServerPanel";
 import { DotGridCanvas, type PanelRect } from "@/components/DotGridCanvas";
@@ -38,7 +39,17 @@ export default function Home() {
   const { positions, updatePosition, arrangeAll } =
     usePanelPositions(serverIds);
 
-  useNotification(servers);
+  const attentionCount = useMemo(() => {
+    let count = 0;
+    for (const server of servers) {
+      for (const session of server.sessions) {
+        if (session.state === "needs_attention") count++;
+      }
+    }
+    return count;
+  }, [servers]);
+
+  useNotification(attentionCount);
 
   useEffect(() => {
     if (localStorage.getItem("metrics-visible") === "false") {
@@ -69,9 +80,9 @@ export default function Home() {
     setZOrder((prev) => [...prev.filter((z) => z !== id), id]);
   }, []);
 
-  const reportRect = useCallback(
-    (id: string) => (rect: PanelRect) => {
-      panelRectsRef.current[id] = rect;
+  const handleReportRect = useCallback(
+    (serverId: string, rect: PanelRect) => {
+      panelRectsRef.current[serverId] = rect;
     },
     []
   );
@@ -84,12 +95,34 @@ export default function Home() {
     [router]
   );
 
-  let attentionCount = 0;
-  for (const server of servers) {
-    for (const session of server.sessions) {
-      if (session.state === "needs_attention") attentionCount++;
-    }
-  }
+  const handleNewSession = useCallback((serverId: string) => {
+    setDefaultNewServerId(serverId);
+    setShowNewSession(true);
+  }, []);
+
+  const handleNewSessionGlobal = useCallback(() => {
+    setDefaultNewServerId(undefined);
+    setShowNewSession(true);
+  }, []);
+
+  const handleCloseNewSession = useCallback(() => {
+    setShowNewSession(false);
+  }, []);
+
+  const handleOpenArchive = useCallback(() => {
+    setArchiveOpen(true);
+  }, []);
+
+  const handleCloseArchive = useCallback(() => {
+    setArchiveOpen(false);
+  }, []);
+
+  const handleMobileOpenTerminal = useCallback(
+    (serverId: string, sessionId: string) => {
+      router.push(`/server/${serverId}/session/${sessionId}`);
+    },
+    [router]
+  );
 
   if (isMobile) {
     return (
@@ -97,26 +130,16 @@ export default function Home() {
         <MobileServerList
           servers={servers}
           attentionCount={attentionCount}
-          onOpenTerminal={(serverId, sessionId) =>
-            router.push(`/server/${serverId}/session/${sessionId}`)
-          }
-          onKillSession={(serverId, sessionId) =>
-            killSession(serverId, sessionId)
-          }
-          onNewSession={(serverId) => {
-            setDefaultNewServerId(serverId);
-            setShowNewSession(true);
-          }}
-          onNewSessionGlobal={() => {
-            setDefaultNewServerId(undefined);
-            setShowNewSession(true);
-          }}
+          onOpenTerminal={handleMobileOpenTerminal}
+          onKillSession={killSession}
+          onNewSession={handleNewSession}
+          onNewSessionGlobal={handleNewSessionGlobal}
         />
         <NewSessionModal
           open={showNewSession}
           servers={servers}
           defaultServerId={defaultNewServerId}
-          onClose={() => setShowNewSession(false)}
+          onClose={handleCloseNewSession}
           onSubmit={createSession}
         />
       </>
@@ -158,17 +181,14 @@ export default function Home() {
               </button>
             )}
             <button
-              onClick={() => {
-                setDefaultNewServerId(undefined);
-                setShowNewSession(true);
-              }}
+              onClick={handleNewSessionGlobal}
               className="btn-skin flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-medium"
             >
               <Plus size={14} /> New Session
             </button>
-            <a href="/settings" className="btn-ghost p-2">
+            <Link href="/settings" className="btn-ghost p-2">
               <Settings size={16} />
-            </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -184,20 +204,13 @@ export default function Home() {
                 server={server}
                 position={pos}
                 showMetrics={metricsVisible}
-                onPositionChange={(p) => updatePosition(server.id, p)}
-                onBringToFront={() => bringToFront(server.id)}
-                reportRect={reportRect(server.id)}
+                onPositionChange={updatePosition}
+                onBringToFront={bringToFront}
+                onReportRect={handleReportRect}
                 zIndex={zOrder.indexOf(server.id) + 1}
-                onOpenTerminal={(sessionId) =>
-                  handleOpenTerminal(server.id, sessionId)
-                }
-                onKillSession={(sessionId) =>
-                  killSession(server.id, sessionId)
-                }
-                onNewSession={() => {
-                  setDefaultNewServerId(server.id);
-                  setShowNewSession(true);
-                }}
+                onOpenTerminal={handleOpenTerminal}
+                onKillSession={killSession}
+                onNewSession={handleNewSession}
               />
             );
           })
@@ -205,13 +218,13 @@ export default function Home() {
 
       <ArchiveStack
         count={archiveCount}
-        onClick={() => setArchiveOpen(true)}
+        onClick={handleOpenArchive}
       />
 
       <ArchiveDrawer
         open={archiveOpen}
         sessions={archivedSessions}
-        onClose={() => setArchiveOpen(false)}
+        onClose={handleCloseArchive}
         onClear={clearArchive}
         onOpenTerminal={handleOpenTerminal}
       />
@@ -220,7 +233,7 @@ export default function Home() {
         open={showNewSession}
         servers={servers}
         defaultServerId={defaultNewServerId}
-        onClose={() => setShowNewSession(false)}
+        onClose={handleCloseNewSession}
         onSubmit={createSession}
       />
 

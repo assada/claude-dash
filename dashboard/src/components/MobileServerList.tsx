@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Plus, Settings, Terminal, Wifi, WifiOff } from "lucide-react";
 import { SessionRow } from "./ServerPanel";
 import type { ServerStatus } from "@/lib/types";
@@ -44,9 +45,9 @@ export function MobileServerList({
             >
               <Plus size={13} /> New
             </button>
-            <a href="/settings" className="btn-ghost p-2">
+            <Link href="/settings" className="btn-ghost p-2">
               <Settings size={16} />
-            </a>
+            </Link>
           </div>
         </div>
       </header>
