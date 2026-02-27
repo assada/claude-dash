@@ -9,10 +9,11 @@ import { agentManager } from "./src/lib/agent-manager";
 import { prisma } from "./src/lib/prisma";
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = "0.0.0.0";
 const port = parseInt(process.env.PORT || "3000");
 
-const app = next({ dev, hostname, port });
+// Don't pass hostname to next() — it leaks "0.0.0.0" into request origins.
+// We only use 0.0.0.0 for server.listen() to accept connections on all interfaces.
+const app = next({ dev, port });
 const handle = app.getRequestHandler();
 
 // Auth.js v5 encrypts JWT (JWE) with key derived via HKDF.
@@ -298,7 +299,7 @@ app.prepare().then(() => {
     })();
   });
 
-  server.listen(port, hostname, () => {
-    console.log(`> Dashboard ready on http://${hostname}:${port}`);
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`> Dashboard ready on http://0.0.0.0:${port}`);
   });
 });
