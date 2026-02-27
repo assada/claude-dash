@@ -36,10 +36,14 @@ class AgentConnection {
   }
 
   connect() {
+    // Detach old WS handlers to prevent stale close/error events
+    // from interfering with the new connection
     if (this.ws) {
+      this.ws.removeAllListeners();
       try {
         this.ws.close();
       } catch {} // already dead socket
+      this.ws = null;
     }
 
     try {
@@ -50,7 +54,11 @@ class AgentConnection {
       return;
     }
 
-    this.ws.on("open", () => {
+    // Capture reference so handlers can detect stale connections
+    const ws = this.ws;
+
+    ws.on("open", () => {
+      if (this.ws !== ws) return;
       this.online = true;
       this.reconnectDelay = 1000;
       this.resetSilenceTimer();
@@ -58,7 +66,8 @@ class AgentConnection {
       this.onUpdate();
     });
 
-    this.ws.on("message", (data) => {
+    ws.on("message", (data) => {
+      if (this.ws !== ws) return;
       this.resetSilenceTimer();
       try {
         const msg: AgentMessage = JSON.parse(data.toString());
@@ -68,7 +77,8 @@ class AgentConnection {
       }
     });
 
-    this.ws.on("close", (code, reason) => {
+    ws.on("close", (code, reason) => {
+      if (this.ws !== ws) return; // stale connection — ignore
       console.log(`[agent] ${this.config.name}: WS closed (code=${code}, reason=${reason})`);
       this.clearSilenceTimer();
       this.online = false;
@@ -82,7 +92,8 @@ class AgentConnection {
       this.scheduleReconnect();
     });
 
-    this.ws.on("error", (err) => {
+    ws.on("error", (err) => {
+      if (this.ws !== ws) return; // stale connection — ignore
       console.error(`[agent] ${this.config.name}: WS error:`, (err as Error).message);
       this.clearSilenceTimer();
       this.online = false;

@@ -23,7 +23,7 @@ type safeConn struct {
 func (c *safeConn) safeWrite(messageType int, data []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	c.Conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 	return c.Conn.WriteMessage(messageType, data)
 }
 
@@ -398,34 +398,34 @@ func (s *Server) broadcastMachineInfo() {
 	if err != nil {
 		return
 	}
-
-	s.mu.Lock()
-	subs := make([]*safeConn, 0, len(s.subscribers))
-	for conn := range s.subscribers {
-		subs = append(subs, conn)
-	}
-	s.mu.Unlock()
-
-	for _, conn := range subs {
-		conn.safeWrite(websocket.TextMessage, data)
-	}
+	s.broadcast(websocket.TextMessage, data)
 }
 
 func (s *Server) broadcastSessions(sessions []*SessionInfo) {
-	s.mu.Lock()
-	subs := make([]*safeConn, 0, len(s.subscribers))
-	for conn := range s.subscribers {
-		subs = append(subs, conn)
-	}
-	s.mu.Unlock()
-
 	msg := ServerMessage{Type: "sessions", Sessions: sessions}
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return
 	}
+	s.broadcast(websocket.TextMessage, data)
+}
+
+// broadcast sends data to all subscribers, evicting any that fail.
+func (s *Server) broadcast(msgType int, data []byte) {
+	s.mu.Lock()
+	subs := make([]*safeConn, 0, len(s.subscribers))
+	for conn := range s.subscribers {
+		subs = append(subs, conn)
+	}
+	s.mu.Unlock()
 
 	for _, conn := range subs {
-		conn.safeWrite(websocket.TextMessage, data)
+		if err := conn.safeWrite(msgType, data); err != nil {
+			log.Printf("broadcast: evicting dead subscriber: %v", err)
+			s.mu.Lock()
+			delete(s.subscribers, conn)
+			s.mu.Unlock()
+			conn.Close()
+		}
 	}
 }
