@@ -152,8 +152,11 @@ app.prepare().then(() => {
           break;
 
         case "kill_session":
+          console.log(`[ws] kill_session: serverId=${msg.serverId} sessionId=${msg.sessionId}`);
           if (msg.serverId && msg.sessionId) {
             agentManager.killSession(userId, msg.serverId, msg.sessionId);
+          } else {
+            console.warn(`[ws] kill_session: missing serverId or sessionId`);
           }
           break;
 

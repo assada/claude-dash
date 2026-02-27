@@ -127,6 +127,8 @@ class AgentConnection {
   send(msg: Record<string, unknown>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
+    } else {
+      console.warn(`[agent] send failed for ${this.config.name}: ws=${this.ws ? "exists" : "null"} readyState=${this.ws?.readyState}`);
     }
   }
 
@@ -427,7 +429,11 @@ class AgentManager {
 
   killSession(userId: string, serverId: string, sessionId: string) {
     const conn = this.connections.get(connKey(userId, serverId));
-    if (!conn) return;
+    if (!conn) {
+      console.warn(`[agent-manager] killSession: no connection for ${connKey(userId, serverId)}`);
+      return;
+    }
+    console.log(`[agent-manager] killSession: sending kill_session for ${sessionId} to ${serverId}`);
     conn.send({ type: "kill_session", session_id: sessionId });
   }
 

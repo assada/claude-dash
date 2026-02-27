@@ -177,8 +177,13 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				s.sendError(conn, "session_id required")
 				continue
 			}
+			log.Printf("kill_session: %q", msg.SessionID)
 			if err := killTmuxSession(msg.SessionID); err != nil {
+				log.Printf("kill_session error: %v", err)
 				s.sendError(conn, err.Error())
+			} else {
+				log.Printf("kill_session: success, triggering poll")
+				s.poller.poll()
 			}
 
 		case "attach":
