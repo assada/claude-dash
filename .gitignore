@@ -10,5 +10,9 @@ dashboard/.next/
 .env
 config/config.yaml
 
+# LLM
+CLAUDE.md
+PLAN.md
+
 # OS
 .DS_Store
