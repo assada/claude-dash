@@ -310,7 +310,7 @@ function PaletteUI({
           opacity: { duration: 0.12 },
           scale: { type: "spring", stiffness: 400, damping: 25 },
         }}
-        className="surface w-full max-w-lg mx-auto mt-[18vh] overflow-hidden"
+        className="surface w-full max-w-lg mx-4 md:mx-auto mt-[10vh] md:mt-[18vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
