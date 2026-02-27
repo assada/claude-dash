@@ -17,9 +17,9 @@ import { StatusIndicator } from "./StatusIndicator";
 import type { ServerStatus, ServerMetrics, SessionInfo, SessionState } from "@/lib/types";
 import type { PanelPosition } from "@/hooks/usePanelPositions";
 import type { PanelRect } from "./DotGridCanvas";
+import { EXPECTED_VERSION, timeSince, shortName } from "@/lib/format";
 
 // Physics constants — matching robot-components exactly
-const EXPECTED_VERSION = process.env.NEXT_PUBLIC_AGENT_VERSION || "dev";
 const PANEL_WIDTH = 320;
 const BOUNDARY_MARGIN = 8;
 const MAX_VELOCITY = 40;
@@ -33,21 +33,6 @@ const VELOCITY_SAMPLE_COUNT = 6;
 const DRAG_SCALE = 1.018;
 const IDLE_SHADOW = "0 24px 24px -12px rgba(0,0,0,0.25)";
 const DRAG_SHADOW = "0 32px 40px -8px rgba(0,0,0,0.55)";
-
-function timeSince(ts: number): string {
-  const seconds = Math.floor((Date.now() - ts) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-}
-
-function shortName(name: string): string {
-  const match = name.match(/^cc-\d+-(.+)$/);
-  return match ? match[1] : name;
-}
 
 function stateIcon(state: SessionState) {
   switch (state) {

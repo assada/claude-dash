@@ -30,18 +30,21 @@ class AgentConnection {
     private onUpdate: () => void
   ) {}
 
+  private get wsUrl(): string {
+    return `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
+  }
+
   connect() {
     if (this.ws) {
       try {
         this.ws.close();
-      } catch {}
+      } catch {} // already dead socket
     }
 
-    const url = `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
-
     try {
-      this.ws = new WebSocket(url);
-    } catch {
+      this.ws = new WebSocket(this.wsUrl);
+    } catch (e) {
+      console.warn(`[agent] Failed to create WebSocket for ${this.config.name}:`, (e as Error).message);
       this.scheduleReconnect();
       return;
     }
@@ -57,7 +60,9 @@ class AgentConnection {
       try {
         const msg: AgentMessage = JSON.parse(data.toString());
         this.handleMessage(msg);
-      } catch {}
+      } catch (e) {
+        console.warn(`[agent] Failed to parse message from ${this.config.name}:`, (e as Error).message);
+      }
     });
 
     this.ws.on("close", () => {
@@ -171,9 +176,8 @@ class AgentConnection {
     detach: () => void;
     close: () => void;
   } {
-    const url = `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
     console.log(`[terminal-proxy] connecting to ${this.config.host}:${this.config.port} for session ${sessionId}`);
-    const termWs = new WebSocket(url);
+    const termWs = new WebSocket(this.wsUrl);
 
     termWs.on("open", () => {
       console.log(`[terminal-proxy] connected, sending attach for ${sessionId}`);
@@ -197,7 +201,9 @@ class AgentConnection {
         } else if (msg.type === "error" && msg.message) {
           onError(msg.message);
         }
-      } catch {}
+      } catch (e) {
+        console.warn(`[terminal-proxy] Failed to parse message:`, (e as Error).message);
+      }
     });
 
     termWs.on("close", (code, reason) => {
@@ -230,8 +236,7 @@ class AgentConnection {
   }
 
   getScrollback(sessionId: string, callback: (data: string) => void) {
-    const url = `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
-    const sbWs = new WebSocket(url);
+    const sbWs = new WebSocket(this.wsUrl);
 
     sbWs.on("open", () => {
       sbWs.send(
@@ -248,7 +253,9 @@ class AgentConnection {
         } else if (msg.type === "error") {
           sbWs.close();
         }
-      } catch {}
+      } catch (e) {
+        console.warn(`[scrollback] Failed to parse message:`, (e as Error).message);
+      }
     });
 
     sbWs.on("error", () => sbWs.close());

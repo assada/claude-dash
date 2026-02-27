@@ -2,6 +2,11 @@
 
 import { Check } from "lucide-react";
 
+const COLOR_MAP: Record<string, { bg: string; border: string }> = {
+  accent: { bg: "bg-accent", border: "border-accent" },
+  "orange-500": { bg: "bg-orange-500", border: "border-orange-500" },
+};
+
 export function Checkbox({
   checked,
   onChange,
@@ -16,8 +21,7 @@ export function Checkbox({
   color?: string;
   className?: string;
 }) {
-  const checkedBg = `bg-${color}`;
-  const checkedBorder = `border-${color}`;
+  const colorClasses = COLOR_MAP[color] ?? COLOR_MAP.accent;
 
   return (
     <label
@@ -30,7 +34,7 @@ export function Checkbox({
         onClick={() => onChange(!checked)}
         className={`relative w-4 h-4 rounded-[5px] border transition-all duration-150 flex items-center justify-center shrink-0 ${
           checked
-            ? `${checkedBg} ${checkedBorder}`
+            ? `${colorClasses.bg} ${colorClasses.border}`
             : "bg-transparent border-text-faint group-hover:border-text-muted"
         }`}
       >

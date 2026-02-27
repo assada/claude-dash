@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { StatusIndicator } from "./StatusIndicator";
-import { useSessionState } from "@/hooks/useSessionState";
+import { useSessionStateContext } from "@/hooks/useSessionState";
 import type { ServerStatus, SessionState } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
@@ -129,7 +129,7 @@ function PaletteUI({
   onClose: () => void;
   pageActions: PageActions;
 }) {
-  const { servers, clearArchive } = useSessionState();
+  const { servers, clearArchive } = useSessionStateContext();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);

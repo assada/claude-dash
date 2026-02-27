@@ -6,6 +6,20 @@ import { agentManager } from "@/lib/agent-manager";
 
 export const dynamic = "force-dynamic";
 
+async function refreshAgentConnections(userId: string) {
+  const allServers = await prisma.server.findMany({ where: { userId } });
+  agentManager.ensureUserConnections(
+    userId,
+    allServers.map((s) => ({
+      id: s.serverId,
+      name: s.name,
+      host: s.host,
+      port: s.port,
+      token: s.token,
+    }))
+  );
+}
+
 async function getUserId(): Promise<string | null> {
   const session = await auth();
   return session?.user?.id || null;
@@ -72,18 +86,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Refresh agent connections for this user
-  const allServers = await prisma.server.findMany({ where: { userId } });
-  agentManager.ensureUserConnections(
-    userId,
-    allServers.map((s) => ({
-      id: s.serverId,
-      name: s.name,
-      host: s.host,
-      port: s.port,
-      token: s.token,
-    }))
-  );
+  await refreshAgentConnections(userId);
 
   return NextResponse.json({
     ok: true,
@@ -106,18 +109,7 @@ export async function DELETE(req: NextRequest) {
     where: { userId_serverId: { userId, serverId: id } },
   });
 
-  // Refresh agent connections for this user
-  const allServers = await prisma.server.findMany({ where: { userId } });
-  agentManager.ensureUserConnections(
-    userId,
-    allServers.map((s) => ({
-      id: s.serverId,
-      name: s.name,
-      host: s.host,
-      port: s.port,
-      token: s.token,
-    }))
-  );
+  await refreshAgentConnections(userId);
 
   return NextResponse.json({ ok: true });
 }

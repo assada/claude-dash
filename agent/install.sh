@@ -54,6 +54,8 @@ if ! command -v tmux &> /dev/null; then
         if [ "$ans" != "n" ] && [ "$ans" != "N" ]; then
             if command -v apt-get &> /dev/null; then
                 sudo apt-get update -qq && sudo apt-get install -y -qq tmux
+            elif command -v dnf &> /dev/null; then
+                sudo dnf install -y tmux
             elif command -v yum &> /dev/null; then
                 sudo yum install -y tmux
             elif command -v pacman &> /dev/null; then

@@ -8,6 +8,11 @@ import { promisify } from "util";
 import { agentManager } from "./src/lib/agent-manager";
 import { prisma } from "./src/lib/prisma";
 
+if (!process.env.NEXTAUTH_SECRET) {
+  console.error("NEXTAUTH_SECRET is not set");
+  process.exit(1);
+}
+
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT || "3000");
 
@@ -125,7 +130,8 @@ app.prepare().then(() => {
       let msg: BrowserMessage;
       try {
         msg = JSON.parse(rawStr);
-      } catch {
+      } catch (e) {
+        console.warn("[ws] Failed to parse browser message:", (e as Error).message);
         return;
       }
 

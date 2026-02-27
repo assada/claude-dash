@@ -3,7 +3,7 @@
 import { use, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { TerminalView } from "@/components/TerminalView";
-import { useSessionState } from "@/hooks/useSessionState";
+import { useSessionStateContext } from "@/hooks/useSessionState";
 import type { SessionState } from "@/lib/types";
 
 export default function SessionPage({
@@ -13,7 +13,7 @@ export default function SessionPage({
 }) {
   const { serverId, sessionId } = use(params);
   const router = useRouter();
-  const { servers } = useSessionState();
+  const { servers } = useSessionStateContext();
 
   // Allow pinch-to-zoom on terminal page (override layout viewport)
   useEffect(() => {

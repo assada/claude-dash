@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
+import { EXPECTED_VERSION } from "@/lib/format";
 
 const INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/assada/claude-dash/master/agent/install.sh | bash";
-const EXPECTED_VERSION = process.env.NEXT_PUBLIC_AGENT_VERSION || "dev";
 
 function CopyCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
@@ -65,7 +65,9 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ serverId }),
       });
-    } catch {}
+    } catch (e) {
+      console.error("[settings] Failed to update agent:", e);
+    }
     // The agent will restart — wait a bit then clear
     setTimeout(() => setUpdatingServer(null), 8000);
   };
@@ -75,7 +77,9 @@ export default function SettingsPage() {
       const res = await fetch("/api/servers");
       const data = await res.json();
       setServers(data.servers || []);
-    } catch {}
+    } catch (e) {
+      console.error("[settings] Failed to fetch servers:", e);
+    }
   };
 
   useEffect(() => {
@@ -96,7 +100,9 @@ export default function SettingsPage() {
       setEditingServer(null);
       setIsNew(false);
       await fetchServers();
-    } catch {}
+    } catch (e) {
+      console.error("[settings] Failed to save server:", e);
+    }
     setSaving(false);
   };
 
@@ -105,7 +111,9 @@ export default function SettingsPage() {
     try {
       await fetch(`/api/servers?id=${id}`, { method: "DELETE" });
       await fetchServers();
-    } catch {}
+    } catch (e) {
+      console.error("[settings] Failed to delete server:", e);
+    }
   };
 
   return (

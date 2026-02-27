@@ -1,7 +1,28 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import type { ServerStatus, ArchivedSession } from "@/lib/types";
+
+type SessionStateValue = ReturnType<typeof useSessionState>;
+
+const SessionStateContext = createContext<SessionStateValue | null>(null);
+
+export function SessionStateProvider({ children }: { children: React.ReactNode }) {
+  const state = useSessionState();
+  return (
+    <SessionStateContext.Provider value={state}>
+      {children}
+    </SessionStateContext.Provider>
+  );
+}
+
+export function useSessionStateContext(): SessionStateValue {
+  const ctx = useContext(SessionStateContext);
+  if (!ctx) {
+    throw new Error("useSessionStateContext must be used within a SessionStateProvider");
+  }
+  return ctx;
+}
 
 export function useSessionState() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
@@ -97,7 +118,9 @@ export function useSessionState() {
         if (msg.type === "state_update" && msg.servers) {
           processServers(msg.servers);
         }
-      } catch {}
+      } catch (e) {
+        console.warn("[ws] Failed to parse message:", (e as Error).message);
+      }
     };
 
     ws.onclose = () => {

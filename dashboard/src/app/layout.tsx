@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { CommandPaletteProvider } from "@/components/CommandPalette";
+import { SessionStateProvider } from "@/hooks/useSessionState";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,7 +37,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ background: "#171717" }}
       >
-        <CommandPaletteProvider>{children}</CommandPaletteProvider>
+        <SessionStateProvider>
+          <CommandPaletteProvider>{children}</CommandPaletteProvider>
+        </SessionStateProvider>
       </body>
     </html>
   );

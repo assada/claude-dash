@@ -8,6 +8,7 @@ import "@xterm/xterm/css/xterm.css";
 import { StatusIndicator, StateLabel } from "./StatusIndicator";
 import { ArrowLeft, X, SendHorizontal } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { shortName as formatShortName } from "@/lib/format";
 import type { SessionState } from "@/lib/types";
 
 function encodeBase64(str: string): string {
@@ -291,7 +292,7 @@ export function TerminalView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverId, sessionId]);
 
-  const shortName = sessionName.replace(/^cc-\d+-/, "");
+  const shortName = formatShortName(sessionName);
 
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current;

@@ -10,7 +10,7 @@ import { MobileServerList } from "@/components/MobileServerList";
 import { useCommandPaletteActions } from "@/components/CommandPalette";
 import { ArchiveStack } from "@/components/ArchiveStack";
 import { ArchiveDrawer } from "@/components/ArchiveDrawer";
-import { useSessionState } from "@/hooks/useSessionState";
+import { useSessionStateContext } from "@/hooks/useSessionState";
 import { useNotification } from "@/hooks/useNotification";
 import { usePanelPositions } from "@/hooks/usePanelPositions";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -23,7 +23,7 @@ export default function Home() {
     createSession,
     killSession,
     clearArchive,
-  } = useSessionState();
+  } = useSessionStateContext();
   const [showNewSession, setShowNewSession] = useState(false);
   const [defaultNewServerId, setDefaultNewServerId] = useState<string>();
   const [archiveOpen, setArchiveOpen] = useState(false);
