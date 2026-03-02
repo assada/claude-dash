@@ -55,7 +55,11 @@ export function useSessionState() {
             s.metrics?.cpuPercent === f.metrics?.cpuPercent &&
             s.metrics?.memUsed === f.metrics?.memUsed &&
             s.metrics?.diskUsed === f.metrics?.diskUsed &&
-            s.metrics?.uptimeSecs === f.metrics?.uptimeSecs
+            s.metrics?.uptimeSecs === f.metrics?.uptimeSecs &&
+            s.usage?.totalCost === f.usage?.totalCost &&
+            s.usage?.totalTokens === f.usage?.totalTokens &&
+            s.usage?.totalCost === f.usage?.totalCost &&
+            s.usage?.totalTokens === f.usage?.totalTokens
           );
         })
       ) {

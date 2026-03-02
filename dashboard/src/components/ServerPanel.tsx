@@ -18,6 +18,7 @@ import type { ServerStatus, ServerMetrics, SessionInfo, SessionState } from "@/l
 import type { PanelPosition } from "@/hooks/usePanelPositions";
 import type { PanelRect } from "./DotGridCanvas";
 import { EXPECTED_VERSION, timeSince, shortName } from "@/lib/format";
+import { formatCost } from "@/lib/pricing";
 
 // Physics constants — matching robot-components exactly
 const PANEL_WIDTH = 320;
@@ -64,10 +65,12 @@ export function SessionRow({
   session,
   onOpen,
   onKill,
+  cost,
 }: {
   session: SessionInfo;
   onOpen: () => void;
   onKill: () => void;
+  cost?: number;
 }) {
   const isAttention = session.state === "needs_attention";
   const isDead = session.state === "dead";
@@ -109,6 +112,11 @@ export function SessionRow({
           </div>
         )}
       </div>
+      {cost != null && cost > 0 && (
+        <span className="text-[10px] text-emerald-400 font-medium shrink-0">
+          {formatCost(cost)}
+        </span>
+      )}
       <span className="text-[11px] text-text-faint shrink-0">
         {timeSince(session.state_changed_at)}
       </span>
@@ -638,6 +646,12 @@ export const ServerPanel = memo(function ServerPanel({
           {server.name}
         </span>
 
+        {server.usage && server.usage.totalCost > 0 && (
+          <span className="px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 text-[10px] font-semibold pointer-events-none">
+            {formatCost(server.usage.totalCost)}
+          </span>
+        )}
+
         {attentionCount > 0 && (
           <span className="animate-shimmer px-1.5 py-0.5 rounded bg-warn/20 text-warn text-[10px] font-semibold pointer-events-none">
             {attentionCount}
@@ -713,14 +727,18 @@ export const ServerPanel = memo(function ServerPanel({
           )}
           {server.online ? (
             <>
-              {server.sessions.map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  onOpen={() => onOpenTerminal(server.id, session.id)}
-                  onKill={() => onKillSession(server.id, session.id)}
-                />
-              ))}
+              {server.sessions.map((session) => {
+                const sessionCost = server.usage?.sessionUsages?.[session.workdir]?.totalCost;
+                return (
+                  <SessionRow
+                    key={session.id}
+                    session={session}
+                    onOpen={() => onOpenTerminal(server.id, session.id)}
+                    onKill={() => onKillSession(server.id, session.id)}
+                    cost={sessionCost}
+                  />
+                );
+              })}
               {server.sessions.length === 0 && (
                 <div className="px-4 py-3 text-[11px] text-text-faint italic">
                   No sessions

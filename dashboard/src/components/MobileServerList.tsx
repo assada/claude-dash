@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Plus, Settings, Terminal, Wifi, WifiOff } from "lucide-react";
 import { SessionRow } from "./ServerPanel";
 import type { ServerStatus } from "@/lib/types";
+import { formatCost } from "@/lib/pricing";
 
 export function MobileServerList({
   servers,
@@ -73,6 +74,12 @@ export function MobileServerList({
                   {server.name}
                 </span>
 
+                {server.usage && server.usage.totalCost > 0 && (
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 text-[10px] font-semibold">
+                    {formatCost(server.usage.totalCost)}
+                  </span>
+                )}
+
                 {server.online ? (
                   <span className="flex items-center gap-1 text-[10px] text-ok">
                     <Wifi size={10} />
@@ -97,18 +104,22 @@ export function MobileServerList({
               <div className="pb-2 pt-1">
                 {server.online ? (
                   <>
-                    {server.sessions.map((session) => (
-                      <SessionRow
-                        key={session.id}
-                        session={session}
-                        onOpen={() =>
-                          onOpenTerminal(server.id, session.id)
-                        }
-                        onKill={() =>
-                          onKillSession(server.id, session.id)
-                        }
-                      />
-                    ))}
+                    {server.sessions.map((session) => {
+                      const sessionCost = server.usage?.sessionUsages?.[session.workdir]?.totalCost;
+                      return (
+                        <SessionRow
+                          key={session.id}
+                          session={session}
+                          onOpen={() =>
+                            onOpenTerminal(server.id, session.id)
+                          }
+                          onKill={() =>
+                            onKillSession(server.id, session.id)
+                          }
+                          cost={sessionCost}
+                        />
+                      );
+                    })}
                     {server.sessions.length === 0 && (
                       <div className="px-4 py-3 text-[11px] text-text-faint italic">
                         No sessions

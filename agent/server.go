@@ -61,9 +61,16 @@ type ServerMessage struct {
 	LoadAvg    float64 `json:"load_avg,omitempty"`
 }
 
+// UsageMessage is sent to subscribers when new usage entries are available.
+type UsageMessage struct {
+	Type    string       `json:"type"`
+	Entries []UsageEntry `json:"entries"`
+}
+
 type Server struct {
 	config   *Config
 	poller   *Poller
+	usage    *UsageScanner
 	upgrader websocket.Upgrader
 
 	mu          sync.Mutex
@@ -83,6 +90,13 @@ func newServer(config *Config, poller *Poller) *Server {
 	poller.onChange = func(sessions []*SessionInfo) {
 		s.broadcastSessions(sessions)
 	}
+
+	// Usage scanner — reads JSONL logs and broadcasts new entries.
+	s.usage = newUsageScanner(poller)
+	s.usage.onChange = func(entries []UsageEntry) {
+		s.broadcastUsageEntries(entries)
+	}
+	s.usage.Start(10 * time.Second)
 
 	go s.metricsBroadcastLoop()
 
@@ -119,6 +133,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Send initial state
 	sessions := s.poller.GetSessions()
 	s.sendMessage(conn, ServerMessage{Type: "sessions", Sessions: sessions})
+
+	// Send accumulated usage entries to new subscriber
+	if allUsage := s.usage.GetAllEntries(); len(allUsage) > 0 {
+		s.sendUsageEntries(conn, allUsage)
+	}
 
 	var terminal *TerminalSession
 
@@ -393,6 +412,34 @@ func (s *Server) broadcastMachineInfo() {
 		LoadAvg:    m.LoadAvg,
 	}
 
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+
+	s.mu.Lock()
+	subs := make([]*safeConn, 0, len(s.subscribers))
+	for conn := range s.subscribers {
+		subs = append(subs, conn)
+	}
+	s.mu.Unlock()
+
+	for _, conn := range subs {
+		conn.safeWrite(websocket.TextMessage, data)
+	}
+}
+
+func (s *Server) sendUsageEntries(conn *safeConn, entries []UsageEntry) {
+	msg := UsageMessage{Type: "usage_entries", Entries: entries}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	conn.safeWrite(websocket.TextMessage, data)
+}
+
+func (s *Server) broadcastUsageEntries(entries []UsageEntry) {
+	msg := UsageMessage{Type: "usage_entries", Entries: entries}
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return

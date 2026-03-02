@@ -88,6 +88,7 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 		log.Println("Shutting down...")
+		srv.usage.Stop()
 		poller.Stop()
 		listener.Close()
 		os.Exit(0)

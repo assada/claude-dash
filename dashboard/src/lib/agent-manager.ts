@@ -1,5 +1,6 @@
 import WebSocket from "ws";
-import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus } from "./types";
+import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus, UsageEntry, ServerUsage, SessionUsage } from "./types";
+import { calculateEntryCost } from "./pricing";
 
 export interface ServerConfig {
   id: string;
@@ -24,6 +25,8 @@ class AgentConnection {
   public dirs?: string[];
   public sessions: SessionInfo[] = [];
   public metrics?: ServerMetrics;
+  public serverUsage?: ServerUsage;
+  private usageEntries = new Map<string, UsageEntry>();
 
   constructor(
     public config: ServerConfig,
@@ -103,6 +106,23 @@ class AgentConnection {
         }
         break;
 
+      case "usage_entries":
+        if (msg.entries && msg.entries.length > 0) {
+          let added = false;
+          for (const entry of msg.entries) {
+            const key = `${entry.request_id}:${entry.uuid}`;
+            if (!this.usageEntries.has(key)) {
+              this.usageEntries.set(key, entry);
+              added = true;
+            }
+          }
+          if (added) {
+            this.recalculateUsage();
+            this.onUpdate();
+          }
+        }
+        break;
+
       case "machine_info":
         this.hostname = msg.hostname;
         this.os = msg.os;
@@ -122,6 +142,59 @@ class AgentConnection {
         this.onUpdate();
         break;
     }
+  }
+
+  private recalculateUsage() {
+    const bySession = new Map<string, UsageEntry[]>();
+    for (const entry of this.usageEntries.values()) {
+      // Group by workdir (matches session workdir)
+      const key = entry.workdir;
+      const arr = bySession.get(key) || [];
+      arr.push(entry);
+      bySession.set(key, arr);
+    }
+
+    let totalCost = 0;
+    let totalTokens = 0;
+    const sessionUsages: Record<string, SessionUsage> = {};
+
+    for (const [workdir, entries] of bySession) {
+      let sCost = 0;
+      let sInput = 0;
+      let sOutput = 0;
+      let sCacheCreate = 0;
+      let sCacheRead = 0;
+      let firstSeen = "";
+      let lastSeen = "";
+
+      for (const e of entries) {
+        const cost = calculateEntryCost(e);
+        sCost += cost;
+        sInput += e.input_tokens;
+        sOutput += e.output_tokens;
+        sCacheCreate += e.cache_creation_input_tokens;
+        sCacheRead += e.cache_read_input_tokens;
+        if (!firstSeen || e.timestamp < firstSeen) firstSeen = e.timestamp;
+        if (!lastSeen || e.timestamp > lastSeen) lastSeen = e.timestamp;
+      }
+
+      totalCost += sCost;
+      totalTokens += sInput + sOutput + sCacheCreate + sCacheRead;
+
+      sessionUsages[workdir] = {
+        sessionId: workdir,
+        totalCost: sCost,
+        totalInputTokens: sInput,
+        totalOutputTokens: sOutput,
+        totalCacheCreateTokens: sCacheCreate,
+        totalCacheReadTokens: sCacheRead,
+        messageCount: entries.length,
+        firstSeen,
+        lastSeen,
+      };
+    }
+
+    this.serverUsage = { totalCost, totalTokens, sessionUsages };
   }
 
   send(msg: Record<string, unknown>) {
@@ -334,6 +407,7 @@ class AgentManager {
           dirs: conn.dirs,
           sessions: conn.sessions,
           metrics: conn.metrics,
+          usage: conn.serverUsage,
         });
       }
     }

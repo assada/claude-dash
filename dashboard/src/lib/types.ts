@@ -17,6 +17,37 @@ export interface SessionInfo {
   serverName: string;
 }
 
+export interface UsageEntry {
+  session_id: string;
+  request_id: string;
+  uuid: string;
+  timestamp: string;
+  model: string;
+  workdir: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+}
+
+export interface SessionUsage {
+  sessionId: string;
+  totalCost: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheCreateTokens: number;
+  totalCacheReadTokens: number;
+  messageCount: number;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+export interface ServerUsage {
+  totalCost: number;
+  totalTokens: number;
+  sessionUsages: Record<string, SessionUsage>;
+}
+
 export interface ServerMetrics {
   cpuPercent: number;
   memTotal: number;
@@ -39,6 +70,7 @@ export interface ServerStatus {
   dirs?: string[];
   sessions: SessionInfo[];
   metrics?: ServerMetrics;
+  usage?: ServerUsage;
 }
 
 // Agent → Dashboard messages
@@ -61,6 +93,9 @@ export interface AgentMessage {
   version?: string;
   dirs?: string[];
   message?: string;
+
+  // Usage entries (sent with usage_entries)
+  entries?: UsageEntry[];
 
   // System metrics (sent with machine_info)
   cpu_percent?: number;

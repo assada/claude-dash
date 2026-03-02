@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
+import { formatCost } from "@/lib/pricing";
 import { ServerPanel } from "@/components/ServerPanel";
 import { DotGridCanvas, type PanelRect } from "@/components/DotGridCanvas";
 import { NewSessionModal } from "@/components/NewSessionModal";
@@ -41,6 +42,10 @@ export default function Home() {
       }
     }
     return count;
+  }, [servers]);
+
+  const totalCost = useMemo(() => {
+    return servers.reduce((sum, s) => sum + (s.usage?.totalCost ?? 0), 0);
   }, [servers]);
 
   useNotification(attentionCount);
@@ -150,6 +155,12 @@ export default function Home() {
           {attentionCount > 0 && (
             <span className="animate-shimmer px-2 py-0.5 rounded-md bg-warn text-white text-[11px] font-semibold">
               {attentionCount}
+            </span>
+          )}
+
+          {totalCost > 0 && (
+            <span className="px-2 py-0.5 rounded-md bg-emerald-900/40 text-emerald-400 text-[11px] font-semibold">
+              {formatCost(totalCost)}
             </span>
           )}
 
