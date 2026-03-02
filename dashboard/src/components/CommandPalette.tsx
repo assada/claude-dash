@@ -10,6 +10,7 @@ import {
   useCallback,
 } from "react";
 import { useRouter } from "next/navigation";
+import { shortName } from "@/lib/format";
 import {
   Terminal,
   Plus,
@@ -140,7 +141,7 @@ function PaletteUI({
       for (const session of server.sessions) {
         items.push({
           id: `session-${session.id}`,
-          label: `${session.name} @ ${server.name}`,
+          label: `${shortName(session.name, session.workdir)} @ ${server.name}`,
           icon: <Terminal size={16} className="text-text-muted" />,
           badge: (
             <span className="flex items-center gap-1.5 text-[11px] text-text-faint">
