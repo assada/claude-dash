@@ -6,8 +6,6 @@ Real-time dashboard for managing Claude Code sessions across multiple servers.
 https://github.com/user-attachments/assets/f292c6b1-7a13-4e2f-b9f1-0ea9dcf9c540
 
 
-https://github.com/assada/claude-dash/raw/master/assets/video.mp4
-
 ## Architecture
 
 ```
