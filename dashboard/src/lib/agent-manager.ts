@@ -1,6 +1,7 @@
 import WebSocket from "ws";
 import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus, UsageEntry, ServerUsage, SessionUsage } from "./types";
 import { calculateEntryCost } from "./pricing";
+import { prisma } from "./prisma";
 
 export interface ServerConfig {
   id: string;
@@ -26,10 +27,10 @@ class AgentConnection {
   public sessions: SessionInfo[] = [];
   public metrics?: ServerMetrics;
   public serverUsage?: ServerUsage;
-  private usageEntries = new Map<string, UsageEntry>();
 
   constructor(
     public config: ServerConfig,
+    private userId: string,
     private onUpdate: () => void
   ) {}
 
@@ -56,13 +57,18 @@ class AgentConnection {
       this.online = true;
       this.reconnectDelay = 1000;
       this.send({ type: "machine_info" });
+      this.loadUsageFromDB().catch((e) =>
+        console.warn(`[agent] Failed to load usage from DB:`, (e as Error).message)
+      );
       this.onUpdate();
     });
 
     this.ws.on("message", (data) => {
       try {
         const msg: AgentMessage = JSON.parse(data.toString());
-        this.handleMessage(msg);
+        this.handleMessage(msg).catch((e) =>
+          console.warn(`[agent] Error handling message from ${this.config.name}:`, (e as Error).message)
+        );
       } catch (e) {
         console.warn(`[agent] Failed to parse message from ${this.config.name}:`, (e as Error).message);
       }
@@ -93,7 +99,7 @@ class AgentConnection {
     });
   }
 
-  private handleMessage(msg: AgentMessage) {
+  private async handleMessage(msg: AgentMessage) {
     switch (msg.type) {
       case "sessions":
         if (msg.sessions) {
@@ -108,16 +114,27 @@ class AgentConnection {
 
       case "usage_entries":
         if (msg.entries && msg.entries.length > 0) {
-          let added = false;
-          for (const entry of msg.entries) {
-            const key = `${entry.request_id}:${entry.uuid}`;
-            if (!this.usageEntries.has(key)) {
-              this.usageEntries.set(key, entry);
-              added = true;
-            }
-          }
-          if (added) {
-            this.recalculateUsage();
+          const rows = msg.entries.map((e) => ({
+            userId: this.userId,
+            serverId: this.config.id,
+            sessionId: e.session_id,
+            requestId: e.request_id,
+            uuid: e.uuid,
+            timestamp: new Date(e.timestamp),
+            model: e.model,
+            workdir: e.workdir,
+            inputTokens: e.input_tokens,
+            outputTokens: e.output_tokens,
+            cacheCreationInputTokens: e.cache_creation_input_tokens,
+            cacheReadInputTokens: e.cache_read_input_tokens,
+            cost: calculateEntryCost(e),
+          }));
+          const result = await prisma.usageEntry.createMany({
+            data: rows,
+            skipDuplicates: true,
+          });
+          if (result.count > 0) {
+            await this.loadUsageFromDB();
             this.onUpdate();
           }
         }
@@ -144,53 +161,47 @@ class AgentConnection {
     }
   }
 
-  private recalculateUsage() {
-    const bySession = new Map<string, UsageEntry[]>();
-    for (const entry of this.usageEntries.values()) {
-      // Group by workdir (matches session workdir)
-      const key = entry.workdir;
-      const arr = bySession.get(key) || [];
-      arr.push(entry);
-      bySession.set(key, arr);
-    }
+  async loadUsageFromDB() {
+    const aggregates = await prisma.usageEntry.groupBy({
+      by: ["workdir"],
+      where: { userId: this.userId, serverId: this.config.id },
+      _sum: {
+        cost: true,
+        inputTokens: true,
+        outputTokens: true,
+        cacheCreationInputTokens: true,
+        cacheReadInputTokens: true,
+      },
+      _count: true,
+      _min: { timestamp: true },
+      _max: { timestamp: true },
+    });
 
     let totalCost = 0;
     let totalTokens = 0;
     const sessionUsages: Record<string, SessionUsage> = {};
 
-    for (const [workdir, entries] of bySession) {
-      let sCost = 0;
-      let sInput = 0;
-      let sOutput = 0;
-      let sCacheCreate = 0;
-      let sCacheRead = 0;
-      let firstSeen = "";
-      let lastSeen = "";
+    for (const agg of aggregates) {
+      const s = agg._sum;
+      const cost = s.cost ?? 0;
+      totalCost += cost;
+      const tokens =
+        (s.inputTokens ?? 0) +
+        (s.outputTokens ?? 0) +
+        (s.cacheCreationInputTokens ?? 0) +
+        (s.cacheReadInputTokens ?? 0);
+      totalTokens += tokens;
 
-      for (const e of entries) {
-        const cost = calculateEntryCost(e);
-        sCost += cost;
-        sInput += e.input_tokens;
-        sOutput += e.output_tokens;
-        sCacheCreate += e.cache_creation_input_tokens;
-        sCacheRead += e.cache_read_input_tokens;
-        if (!firstSeen || e.timestamp < firstSeen) firstSeen = e.timestamp;
-        if (!lastSeen || e.timestamp > lastSeen) lastSeen = e.timestamp;
-      }
-
-      totalCost += sCost;
-      totalTokens += sInput + sOutput + sCacheCreate + sCacheRead;
-
-      sessionUsages[workdir] = {
-        sessionId: workdir,
-        totalCost: sCost,
-        totalInputTokens: sInput,
-        totalOutputTokens: sOutput,
-        totalCacheCreateTokens: sCacheCreate,
-        totalCacheReadTokens: sCacheRead,
-        messageCount: entries.length,
-        firstSeen,
-        lastSeen,
+      sessionUsages[agg.workdir] = {
+        sessionId: agg.workdir,
+        totalCost: cost,
+        totalInputTokens: s.inputTokens ?? 0,
+        totalOutputTokens: s.outputTokens ?? 0,
+        totalCacheCreateTokens: s.cacheCreationInputTokens ?? 0,
+        totalCacheReadTokens: s.cacheReadInputTokens ?? 0,
+        messageCount: agg._count,
+        firstSeen: agg._min.timestamp?.toISOString() ?? "",
+        lastSeen: agg._max.timestamp?.toISOString() ?? "",
       };
     }
 
@@ -348,7 +359,7 @@ class AgentManager {
       const existing = this.connections.get(key);
 
       if (!existing) {
-        const conn = new AgentConnection(server, () =>
+        const conn = new AgentConnection(server, userId, () =>
           this.notifyUser(userId)
         );
         this.connections.set(key, conn);
@@ -360,7 +371,7 @@ class AgentManager {
         existing.config.name !== server.name
       ) {
         existing.disconnect();
-        const conn = new AgentConnection(server, () =>
+        const conn = new AgentConnection(server, userId, () =>
           this.notifyUser(userId)
         );
         this.connections.set(key, conn);

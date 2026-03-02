@@ -45,8 +45,6 @@ type jsonlLine struct {
 
 type UsageScanner struct {
 	mu          sync.RWMutex
-	entries     []UsageEntry
-	seen        map[string]bool
 	fileOffsets map[string]int64
 	poller      *Poller
 	onChange    func([]UsageEntry) // called with NEW entries only
@@ -55,7 +53,6 @@ type UsageScanner struct {
 
 func newUsageScanner(poller *Poller) *UsageScanner {
 	return &UsageScanner{
-		seen:        make(map[string]bool),
 		fileOffsets: make(map[string]int64),
 		poller:      poller,
 		stopCh:      make(chan struct{}),
@@ -81,14 +78,6 @@ func (u *UsageScanner) Start(interval time.Duration) {
 
 func (u *UsageScanner) Stop() {
 	close(u.stopCh)
-}
-
-func (u *UsageScanner) GetAllEntries() []UsageEntry {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-	cp := make([]UsageEntry, len(u.entries))
-	copy(cp, u.entries)
-	return cp
 }
 
 func (u *UsageScanner) scan() {
@@ -119,10 +108,6 @@ func (u *UsageScanner) scan() {
 	if len(allNew) == 0 {
 		return
 	}
-
-	u.mu.Lock()
-	u.entries = append(u.entries, allNew...)
-	u.mu.Unlock()
 
 	if u.onChange != nil {
 		u.onChange(allNew)
@@ -200,15 +185,6 @@ func (u *UsageScanner) scanFile(path, workdir string) []UsageEntry {
 		if jl.Type != "assistant" || jl.Message == nil || jl.Message.Usage == nil {
 			continue
 		}
-
-		dedupKey := jl.RequestID + ":" + jl.UUID
-		u.mu.Lock()
-		if u.seen[dedupKey] {
-			u.mu.Unlock()
-			continue
-		}
-		u.seen[dedupKey] = true
-		u.mu.Unlock()
 
 		entries = append(entries, UsageEntry{
 			SessionID:                jl.SessionID,

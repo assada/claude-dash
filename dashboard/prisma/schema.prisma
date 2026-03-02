@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
+  id            String       @id @default(cuid())
+  email         String       @unique
   emailVerified DateTime?
   name          String?
   image         String?
   accounts      Account[]
   servers       Server[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  usageEntries  UsageEntry[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
 
 model Account {
@@ -50,4 +51,27 @@ model Server {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, serverId])
+}
+
+model UsageEntry {
+  id                       String   @id @default(cuid())
+  userId                   String
+  serverId                 String
+  sessionId                String
+  requestId                String
+  uuid                     String
+  timestamp                DateTime
+  model                    String
+  workdir                  String
+  inputTokens              Int
+  outputTokens             Int
+  cacheCreationInputTokens Int
+  cacheReadInputTokens     Int
+  cost                     Float
+  createdAt                DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, uuid])
+  @@index([userId, serverId])
 }

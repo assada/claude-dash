@@ -134,11 +134,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessions := s.poller.GetSessions()
 	s.sendMessage(conn, ServerMessage{Type: "sessions", Sessions: sessions})
 
-	// Send accumulated usage entries to new subscriber
-	if allUsage := s.usage.GetAllEntries(); len(allUsage) > 0 {
-		s.sendUsageEntries(conn, allUsage)
-	}
-
 	var terminal *TerminalSession
 
 	defer func() {
@@ -427,15 +422,6 @@ func (s *Server) broadcastMachineInfo() {
 	for _, conn := range subs {
 		conn.safeWrite(websocket.TextMessage, data)
 	}
-}
-
-func (s *Server) sendUsageEntries(conn *safeConn, entries []UsageEntry) {
-	msg := UsageMessage{Type: "usage_entries", Entries: entries}
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-	conn.safeWrite(websocket.TextMessage, data)
 }
 
 func (s *Server) broadcastUsageEntries(entries []UsageEntry) {
