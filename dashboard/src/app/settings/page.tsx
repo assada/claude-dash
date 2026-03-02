@@ -248,6 +248,90 @@ interface ServerForm {
   token: string;
 }
 
+function EditForm({ editingServer, setEditingServer, isNew, saving, onSave, onCancel }: {
+  editingServer: ServerForm;
+  setEditingServer: (s: ServerForm) => void;
+  isNew: boolean;
+  saving: boolean;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="surface p-6">
+      <span className="block text-[15px] font-semibold text-text-secondary mb-4">
+        {isNew ? "Add Server" : "Edit Server"}
+      </span>
+      <div className="flex flex-col gap-4" data-1p-ignore data-lpignore="true">
+        <div>
+          <label className="label">Name</label>
+          <input
+            type="text"
+            value={editingServer.name}
+            onChange={(e) => setEditingServer({ ...editingServer, name: e.target.value })}
+            placeholder="My Server"
+            autoComplete="off"
+            data-1p-ignore
+            className="input"
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Tailscale IP / Host</label>
+            <input
+              type="text"
+              value={editingServer.host}
+              onChange={(e) => setEditingServer({ ...editingServer, host: e.target.value })}
+              placeholder="100.64.1.10"
+              autoComplete="off"
+              data-1p-ignore
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="label">Port</label>
+            <input
+              type="number"
+              value={editingServer.port}
+              onChange={(e) => setEditingServer({ ...editingServer, port: parseInt(e.target.value) || 9100 })}
+              autoComplete="off"
+              data-1p-ignore
+              className="input"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="label">Auth Token</label>
+          <input
+            type="text"
+            value={editingServer.token}
+            onChange={(e) => setEditingServer({ ...editingServer, token: e.target.value })}
+            placeholder="Leave blank to keep current"
+            autoComplete="off"
+            data-1p-ignore
+            className="input"
+            style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onCancel}
+            className="btn-skin flex items-center gap-1 px-3.5 py-2 text-[13px] font-medium !text-text-muted"
+          >
+            <X size={13} /> Cancel
+          </button>
+          <button
+            onClick={onSave}
+            disabled={saving || !editingServer.name || !editingServer.host}
+            className="btn-primary flex items-center gap-1 px-3.5 py-2 text-[13px] font-medium"
+          >
+            <Check size={13} /> {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
   const [editingServer, setEditingServer] = useState<ServerForm | null>(null);
@@ -361,56 +445,68 @@ export default function SettingsPage() {
               isAgentOutdated(server.agentVersion, EXPECTED_VERSION);
 
             return (
-              <div key={server.id} className="panel flex flex-col sm:flex-row sm:items-center gap-3 p-4">
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-medium text-text-primary">{server.name}</div>
-                  <div className="text-[11px] text-text-faint mt-0.5 flex items-center gap-2">
-                    <span>{server.host}:{server.port}</span>
-                    {server.online && server.agentVersion && (
-                      <span className={outdated ? "text-orange-500" : ""}>
-                        {server.agentVersion}
-                      </span>
-                    )}
+              <div key={server.id} className="flex flex-col gap-2">
+                <div className="panel flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] font-medium text-text-primary">{server.name}</div>
+                    <div className="text-[11px] text-text-faint mt-0.5 flex items-center gap-2">
+                      <span>{server.host}:{server.port}</span>
+                      {server.online && server.agentVersion && (
+                        <span className={outdated ? "text-orange-500" : ""}>
+                          {server.agentVersion}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {server.online ? (
-                  <span className="flex items-center gap-1 text-[11px] text-ok shrink-0">
-                    <Wifi size={11} /> online
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[11px] text-warn shrink-0">
-                    <WifiOff size={11} /> offline
-                  </span>
-                )}
-                {outdated && (
+                  {server.online ? (
+                    <span className="flex items-center gap-1 text-[11px] text-ok shrink-0">
+                      <Wifi size={11} /> online
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[11px] text-warn shrink-0">
+                      <WifiOff size={11} /> offline
+                    </span>
+                  )}
+                  {outdated && (
+                    <button
+                      onClick={() => handleUpdate(server.id)}
+                      disabled={updatingServer === server.id}
+                      className="btn-skin flex items-center gap-1 px-2.5 py-1 text-[11px] !text-orange-500 shrink-0"
+                      title={`Update from ${server.agentVersion} to ${EXPECTED_VERSION}`}
+                    >
+                      <Download size={11} />
+                      {updatingServer === server.id ? "Updating..." : "Update"}
+                    </button>
+                  )}
                   <button
-                    onClick={() => handleUpdate(server.id)}
-                    disabled={updatingServer === server.id}
-                    className="btn-skin flex items-center gap-1 px-2.5 py-1 text-[11px] !text-orange-500 shrink-0"
-                    title={`Update from ${server.agentVersion} to ${EXPECTED_VERSION}`}
+                    onClick={() => {
+                      setEditingServer({
+                        id: server.id, name: server.name,
+                        host: server.host, port: server.port, token: "",
+                      });
+                      setIsNew(false);
+                    }}
+                    className="btn-skin px-2.5 py-1 text-[11px] !text-text-muted shrink-0"
                   >
-                    <Download size={11} />
-                    {updatingServer === server.id ? "Updating..." : "Update"}
+                    Edit
                   </button>
+                  <button
+                    onClick={() => handleDelete(server.id)}
+                    className="btn-danger p-1.5 shrink-0"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                {editingServer && !isNew && editingServer.id === server.id && (
+                  <EditForm
+                    editingServer={editingServer}
+                    setEditingServer={setEditingServer}
+                    isNew={false}
+                    saving={saving}
+                    onSave={handleSave}
+                    onCancel={() => { setEditingServer(null); setIsNew(false); }}
+                  />
                 )}
-                <button
-                  onClick={() => {
-                    setEditingServer({
-                      id: server.id, name: server.name,
-                      host: server.host, port: server.port, token: "",
-                    });
-                    setIsNew(false);
-                  }}
-                  className="btn-skin px-2.5 py-1 text-[11px] !text-text-muted shrink-0"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(server.id)}
-                  className="btn-danger p-1.5 shrink-0"
-                >
-                  <Trash2 size={13} />
-                </button>
               </div>
             );
           })}
@@ -444,81 +540,20 @@ export default function SettingsPage() {
           <CopyCommand command={INSTALL_CMD} />
         </div>
 
-        {/* Edit form */}
-        {editingServer && (
-          <div className="surface p-6">
-            <span className="block text-[15px] font-semibold text-text-secondary mb-4">
-              {isNew ? "Add Server" : "Edit Server"}
-            </span>
-            <div className="flex flex-col gap-4" data-1p-ignore data-lpignore="true">
-              <div>
-                <label className="label">Name</label>
-                <input
-                  type="text"
-                  value={editingServer.name}
-                  onChange={(e) => setEditingServer({ ...editingServer, name: e.target.value })}
-                  placeholder="My Server"
-                  autoComplete="off"
-                  data-1p-ignore
-                  className="input"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Tailscale IP / Host</label>
-                  <input
-                    type="text"
-                    value={editingServer.host}
-                    onChange={(e) => setEditingServer({ ...editingServer, host: e.target.value })}
-                    placeholder="100.64.1.10"
-                    autoComplete="off"
-                    data-1p-ignore
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="label">Port</label>
-                  <input
-                    type="number"
-                    value={editingServer.port}
-                    onChange={(e) => setEditingServer({ ...editingServer, port: parseInt(e.target.value) || 9100 })}
-                    autoComplete="off"
-                    data-1p-ignore
-                    className="input"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="label">Auth Token</label>
-                <input
-                  type="text"
-                  value={editingServer.token}
-                  onChange={(e) => setEditingServer({ ...editingServer, token: e.target.value })}
-                  placeholder="Leave blank to keep current"
-                  autoComplete="off"
-                  data-1p-ignore
-                  className="input"
-                  style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  onClick={() => { setEditingServer(null); setIsNew(false); }}
-                  className="btn-skin flex items-center gap-1 px-3.5 py-2 text-[13px] font-medium !text-text-muted"
-                >
-                  <X size={13} /> Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !editingServer.name || !editingServer.host}
-                  className="btn-primary flex items-center gap-1 px-3.5 py-2 text-[13px] font-medium"
-                >
-                  <Check size={13} /> {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Add server form */}
+        {editingServer && isNew && (
+          <EditForm
+            editingServer={editingServer}
+            setEditingServer={setEditingServer}
+            isNew={true}
+            saving={saving}
+            onSave={handleSave}
+            onCancel={() => { setEditingServer(null); setIsNew(false); }}
+          />
         )}
+        <div className="text-[10px] text-text-faint/50 text-center mt-8 mb-2">
+          dashboard {EXPECTED_VERSION}
+        </div>
       </main>
     </div>
   );

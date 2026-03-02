@@ -17,6 +17,7 @@ services:
       retries: 5
 
   dashboard:
+    image: ghcr.io/assada/claude-dash:${AGENT_VERSION:-latest}
     build:
       context: ./dashboard
       dockerfile: Dockerfile

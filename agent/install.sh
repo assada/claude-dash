@@ -199,6 +199,15 @@ if [ -f "$CONFIG_DIR/agent.yaml" ]; then
     if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
         info "Keeping existing config."
         SKIP_CONFIG=1
+        # Read actual token/port from existing config so summary is correct
+        EXISTING_TOKEN=$(grep -oP 'token:\s*"?\K[^"]+' "$CONFIG_DIR/agent.yaml" 2>/dev/null || true)
+        if [ -n "$EXISTING_TOKEN" ]; then
+            TOKEN="$EXISTING_TOKEN"
+        fi
+        EXISTING_PORT=$(grep -oP 'port:\s*\K\d+' "$CONFIG_DIR/agent.yaml" 2>/dev/null || true)
+        if [ -n "$EXISTING_PORT" ]; then
+            PORT="$EXISTING_PORT"
+        fi
     fi
 fi
 
