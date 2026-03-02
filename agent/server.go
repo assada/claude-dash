@@ -134,6 +134,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessions := s.poller.GetSessions()
 	s.sendMessage(conn, ServerMessage{Type: "sessions", Sessions: sessions})
 
+	// Re-scan all usage files so new subscriber gets historical data.
+	// Dashboard deduplicates via skipDuplicates on DB insert.
+	s.usage.RescanAll()
+
 	var terminal *TerminalSession
 
 	defer func() {

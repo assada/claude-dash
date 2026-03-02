@@ -61,8 +61,6 @@ func newUsageScanner(poller *Poller) *UsageScanner {
 
 func (u *UsageScanner) Start(interval time.Duration) {
 	go func() {
-		// Run immediately on start, then on ticker.
-		u.scan()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -78,6 +76,15 @@ func (u *UsageScanner) Start(interval time.Duration) {
 
 func (u *UsageScanner) Stop() {
 	close(u.stopCh)
+}
+
+// RescanAll resets file offsets so the next scan re-reads everything.
+// Used when a new subscriber connects to ensure it gets all historical data.
+func (u *UsageScanner) RescanAll() {
+	u.mu.Lock()
+	u.fileOffsets = make(map[string]int64)
+	u.mu.Unlock()
+	go u.scan()
 }
 
 func (u *UsageScanner) scan() {
