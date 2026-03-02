@@ -7,11 +7,17 @@ interface ModelPricing {
   cacheRead: number;
 }
 
-// Pricing per 1M tokens (USD)
+// Pricing per 1M tokens (USD) — https://platform.claude.com/docs/en/about-claude/pricing
 const PRICING: Record<string, ModelPricing> = {
-  "claude-opus-4-6":   { input: 15,   output: 75,  cacheCreate: 18.75, cacheRead: 1.50 },
+  "claude-opus-4-6":   { input: 5,    output: 25,  cacheCreate: 6.25,  cacheRead: 0.50 },
+  "claude-opus-4-5":   { input: 5,    output: 25,  cacheCreate: 6.25,  cacheRead: 0.50 },
+  "claude-opus-4-1":   { input: 15,   output: 75,  cacheCreate: 18.75, cacheRead: 1.50 },
+  "claude-opus-4-":    { input: 15,   output: 75,  cacheCreate: 18.75, cacheRead: 1.50 },
   "claude-sonnet-4-6": { input: 3,    output: 15,  cacheCreate: 3.75,  cacheRead: 0.30 },
-  "claude-haiku-4-5":  { input: 0.80, output: 4,   cacheCreate: 1.00,  cacheRead: 0.08 },
+  "claude-sonnet-4-5": { input: 3,    output: 15,  cacheCreate: 3.75,  cacheRead: 0.30 },
+  "claude-sonnet-4-":  { input: 3,    output: 15,  cacheCreate: 3.75,  cacheRead: 0.30 },
+  "claude-haiku-4-5":  { input: 1,    output: 5,   cacheCreate: 1.25,  cacheRead: 0.10 },
+  "claude-haiku-3-5":  { input: 0.80, output: 4,   cacheCreate: 1.00,  cacheRead: 0.08 },
 };
 
 // Fallback for unknown models — use sonnet pricing as a reasonable middle ground

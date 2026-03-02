@@ -10,7 +10,8 @@ export function timeSince(ts: number): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-export function shortName(name: string): string {
+export function shortName(name: string, workdir?: string): string {
   const match = name.match(/^cc-\d+-(.+)$/);
-  return match ? match[1] : name;
+  const label = match ? match[1] : name;
+  return label === "session" && workdir ? workdir : label;
 }

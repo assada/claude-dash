@@ -134,6 +134,15 @@ func killTmuxSession(sessionID string) error {
 	return nil
 }
 
+func getPaneWorkdir(sessionID string) (string, error) {
+	cmd := exec.Command("tmux", "display-message", "-t", sessionID, "-p", "#{pane_current_path}")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("tmux display-message: %s: %w", string(out), err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func capturePaneVisible(sessionID string) (string, error) {
 	cmd := exec.Command("tmux", "capture-pane", "-t", sessionID, "-p", "-J")
 	out, err := cmd.CombinedOutput()

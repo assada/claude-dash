@@ -79,7 +79,7 @@ export function SessionRow({
   return (
     <div
       onClick={onOpen}
-      className={`group flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors rounded-[5px] ${
+      className={`group relative flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors rounded-[5px] ${
         isAttention
           ? "bg-red-950/30 hover:bg-red-950/50"
           : "hover:bg-[rgba(64,64,64,0.3)]"
@@ -91,11 +91,12 @@ export function SessionRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span
-            className={`text-[13px] font-medium truncate ${
+            className={`text-[13px] font-medium overflow-hidden whitespace-nowrap text-ellipsis ${
               isAttention ? "text-warn" : "text-text-primary"
             } ${isWorking ? "animate-shimmer" : ""}`}
+            style={{ direction: "rtl", textAlign: "left" }}
           >
-            {shortName(session.name)}
+            {shortName(session.name, session.workdir)}
           </span>
           <span className="text-[11px] text-text-muted shrink-0">
             {stateLabel(session.state)}
@@ -126,7 +127,7 @@ export function SessionRow({
             e.stopPropagation();
             if (confirm("Kill this session?")) onKill();
           }}
-          className="opacity-0 max-md:opacity-60 group-hover:opacity-100 btn-danger p-1 shrink-0"
+          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 max-md:opacity-60 group-hover:opacity-100 transition-opacity btn-danger p-1"
           title="Kill"
         >
           <Trash2 size={11} />

@@ -136,6 +136,13 @@ func (p *Poller) poll() {
 			existing.LastLine = lastLine
 		} else {
 			workdir := p.workdirs[ts.Name]
+			if workdir == "" {
+				// Recover workdir from tmux for pre-existing sessions
+				if wd, err := getPaneWorkdir(ts.Name); err == nil && wd != "" {
+					workdir = wd
+					p.workdirs[ts.Name] = workdir
+				}
+			}
 			p.sessions[ts.Name] = &SessionInfo{
 				ID:             ts.Name,
 				Name:           ts.Name,

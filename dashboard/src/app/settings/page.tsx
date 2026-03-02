@@ -2,9 +2,206 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download, BarChart3, Cpu, FolderOpen, Server, Zap } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
 import { EXPECTED_VERSION } from "@/lib/format";
+import { formatCost, formatTokens } from "@/lib/pricing";
+
+interface UsageStats {
+  totals: {
+    cost: number;
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens: number;
+    cacheReadInputTokens: number;
+    totalTokens: number;
+    entries: number;
+    cacheHitRate: number;
+  };
+  byModel: Array<{
+    model: string;
+    cost: number;
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens: number;
+    cacheReadInputTokens: number;
+    entries: number;
+  }>;
+  byDay: Array<{ day: string; cost: number; tokens: number; entries: number }>;
+  byServer: Array<{
+    serverId: string;
+    cost: number;
+    inputTokens: number;
+    outputTokens: number;
+    entries: number;
+    firstSeen: string;
+    lastSeen: string;
+  }>;
+  topWorkdirs: Array<{ workdir: string; cost: number; entries: number }>;
+}
+
+function modelShortName(model: string): string {
+  if (model.includes("opus")) return "Opus";
+  if (model.includes("sonnet")) return "Sonnet";
+  if (model.includes("haiku")) return "Haiku";
+  return model;
+}
+
+const MODEL_COLORS: Record<string, string> = {
+  Opus: "#c084fc",
+  Sonnet: "#60a5fa",
+  Haiku: "#34d399",
+};
+
+function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-lg border border-surface-2 bg-surface-1/60 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-text-faint">{icon}</span>
+        <span className="text-[11px] text-text-muted uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="text-[20px] font-semibold text-text-primary">{value}</div>
+      {sub && <div className="text-[11px] text-text-faint mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function MiniBar({ items }: { items: Array<{ label: string; value: number; color: string }> }) {
+  const total = items.reduce((s, i) => s + i.value, 0);
+  if (total === 0) return null;
+  return (
+    <div className="flex rounded-full overflow-hidden h-2.5 bg-surface-2">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="h-full transition-all duration-300"
+          style={{ width: `${(item.value / total) * 100}%`, backgroundColor: item.color }}
+          title={`${item.label}: ${formatCost(item.value)}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function UsageSection({ stats, servers }: { stats: UsageStats; servers: ServerStatus[] }) {
+  const t = stats.totals;
+  const serverMap = new Map(servers.map((s) => [s.id, s.name]));
+
+  const modelItems = stats.byModel
+    .sort((a, b) => b.cost - a.cost)
+    .map((m) => {
+      const name = modelShortName(m.model);
+      return { ...m, shortName: name, color: MODEL_COLORS[name] || "#737373" };
+    });
+
+  // Daily chart — last 14 days, fill gaps
+  const dayMap = new Map(stats.byDay.map((d) => [d.day, d]));
+  const days: Array<{ day: string; cost: number; tokens: number; entries: number }> = [];
+  for (let i = 13; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const key = date.toISOString().slice(0, 10);
+    days.push(dayMap.get(key) ?? { day: key, cost: 0, tokens: 0, entries: 0 });
+  }
+  const maxCost = Math.max(...days.map((d) => d.cost), 0.01);
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Overview cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard icon={<BarChart3 size={14} />} label="Total Cost" value={formatCost(t.cost)} sub={`${t.entries.toLocaleString()} API calls`} />
+        <StatCard icon={<Zap size={14} />} label="Tokens" value={formatTokens(t.totalTokens)} sub={`${formatTokens(t.inputTokens)} in · ${formatTokens(t.outputTokens)} out`} />
+        <StatCard icon={<Cpu size={14} />} label="Cache Hit" value={`${(t.cacheHitRate * 100).toFixed(0)}%`} sub={`${formatTokens(t.cacheReadInputTokens)} read · ${formatTokens(t.cacheCreationInputTokens)} created`} />
+        <StatCard icon={<Server size={14} />} label="Servers" value={String(stats.byServer.length)} sub={`${stats.topWorkdirs.length} projects`} />
+      </div>
+
+      {/* Model breakdown */}
+      {modelItems.length > 0 && (
+        <div className="rounded-lg border border-surface-2 bg-surface-1/60 p-4">
+          <span className="text-[12px] text-text-muted uppercase tracking-wide">By Model</span>
+          <MiniBar items={modelItems.map((m) => ({ label: m.shortName, value: m.cost, color: m.color }))} />
+          <div className="mt-3 flex flex-col gap-2">
+            {modelItems.map((m) => (
+              <div key={m.model} className="flex items-center gap-3 text-[12px]">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
+                <span className="text-text-secondary flex-1">{m.shortName}</span>
+                <span className="text-text-muted w-14 text-right">{formatTokens(m.inputTokens + m.outputTokens + m.cacheCreationInputTokens + m.cacheReadInputTokens)}</span>
+                <span className="text-text-primary font-medium w-16 text-right">{formatCost(m.cost)}</span>
+                <span className="text-text-faint w-20 text-right">{m.entries.toLocaleString()} calls</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Daily cost chart */}
+      {days.length > 0 && (
+        <div className="rounded-lg border border-surface-2 bg-surface-1/60 p-4">
+          <span className="text-[12px] text-text-muted uppercase tracking-wide">Daily Cost (last 14 days)</span>
+          <div className="mt-3 flex items-end gap-[3px]" style={{ height: 96 }}>
+            {days.map((d) => {
+              const h = d.cost > 0 ? Math.max((d.cost / maxCost) * 80, 3) : 0;
+              const date = new Date(d.day + "T12:00:00");
+              const label = `${date.getDate()}`;
+              return (
+                <div key={d.day} className="flex-1 flex flex-col items-center justify-end h-full group">
+                  <span className="text-[9px] text-text-faint opacity-0 group-hover:opacity-100 transition-opacity mb-0.5">
+                    {d.cost > 0 ? formatCost(d.cost) : ""}
+                  </span>
+                  <div
+                    className="w-full rounded-t bg-accent/70 hover:bg-accent transition-colors"
+                    style={{ height: h }}
+                    title={`${d.day}: ${formatCost(d.cost)} · ${formatTokens(d.tokens)} tokens · ${d.entries} calls`}
+                  />
+                  <span className="text-[9px] text-text-faint mt-1">{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Per-server breakdown */}
+      {stats.byServer.length > 0 && (
+        <div className="rounded-lg border border-surface-2 bg-surface-1/60 p-4">
+          <span className="text-[12px] text-text-muted uppercase tracking-wide">By Server</span>
+          <div className="mt-3 flex flex-col gap-2">
+            {stats.byServer
+              .sort((a, b) => b.cost - a.cost)
+              .map((sv) => (
+                <div key={sv.serverId} className="flex items-center gap-3 text-[12px]">
+                  <Server size={12} className="text-text-faint shrink-0" />
+                  <span className="text-text-secondary flex-1 truncate">{serverMap.get(sv.serverId) || sv.serverId}</span>
+                  <span className="text-text-muted w-14 text-right">{formatTokens(sv.inputTokens + sv.outputTokens)}</span>
+                  <span className="text-text-primary font-medium w-16 text-right">{formatCost(sv.cost)}</span>
+                  <span className="text-text-faint w-20 text-right">{sv.entries.toLocaleString()} calls</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top workdirs */}
+      {stats.topWorkdirs.length > 0 && (
+        <div className="rounded-lg border border-surface-2 bg-surface-1/60 p-4">
+          <span className="text-[12px] text-text-muted uppercase tracking-wide">Top Projects by Cost</span>
+          <div className="mt-3 flex flex-col gap-2">
+            {stats.topWorkdirs.map((w) => (
+              <div key={w.workdir} className="flex items-center gap-3 text-[12px]">
+                <FolderOpen size={12} className="text-text-faint shrink-0" />
+                <span className="text-text-secondary flex-1 truncate" title={w.workdir}>
+                  {w.workdir}
+                </span>
+                <span className="text-text-primary font-medium w-16 text-right">{formatCost(w.cost)}</span>
+                <span className="text-text-faint w-20 text-right">{w.entries.toLocaleString()} calls</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/assada/claude-dash/master/agent/install.sh | bash";
 
@@ -57,6 +254,7 @@ export default function SettingsPage() {
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [updatingServer, setUpdatingServer] = useState<string | null>(null);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
 
   const handleUpdate = async (serverId: string) => {
     setUpdatingServer(serverId);
@@ -83,8 +281,18 @@ export default function SettingsPage() {
     }
   };
 
+  const fetchUsage = async () => {
+    try {
+      const res = await fetch("/api/usage");
+      if (res.ok) setUsageStats(await res.json());
+    } catch (e) {
+      console.error("[settings] Failed to fetch usage:", e);
+    }
+  };
+
   useEffect(() => {
     fetchServers();
+    fetchUsage();
     const interval = setInterval(fetchServers, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -214,6 +422,14 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        {/* Usage statistics */}
+        {usageStats && usageStats.totals.entries > 0 && (
+          <div className="mb-6">
+            <span className="text-[15px] font-semibold text-text-secondary block mb-4">Usage Statistics</span>
+            <UsageSection stats={usageStats} servers={servers} />
+          </div>
+        )}
 
         {/* Agent setup */}
         <div className="mb-6 rounded-xl border border-surface-2 bg-surface-1/60 p-5">

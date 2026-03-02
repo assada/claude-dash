@@ -82,8 +82,10 @@ func (u *UsageScanner) Stop() {
 // Used when a new subscriber connects to ensure it gets all historical data.
 func (u *UsageScanner) RescanAll() {
 	u.mu.Lock()
+	count := len(u.fileOffsets)
 	u.fileOffsets = make(map[string]int64)
 	u.mu.Unlock()
+	log.Printf("usage: RescanAll — reset %d file offsets, triggering scan", count)
 	go u.scan()
 }
 
@@ -111,6 +113,8 @@ func (u *UsageScanner) scan() {
 		newEntries := u.scanDir(base, workdir)
 		allNew = append(allNew, newEntries...)
 	}
+
+	log.Printf("usage: scan found %d entries from %d workdirs", len(allNew), len(workdirSet))
 
 	if len(allNew) == 0 {
 		return
