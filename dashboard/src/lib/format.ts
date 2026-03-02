@@ -1,5 +1,14 @@
 export const EXPECTED_VERSION = process.env.NEXT_PUBLIC_AGENT_VERSION || "dev";
 
+// isAgentOutdated compares MAJOR.MINOR only — patch differences are compatible.
+export function isAgentOutdated(agentVersion: string, expectedVersion: string): boolean {
+  const minor = (v: string) => v.match(/^v?(\d+\.\d+)/)?.[1];
+  const a = minor(agentVersion);
+  const e = minor(expectedVersion);
+  if (!a || !e) return false;
+  return a !== e;
+}
+
 export function timeSince(ts: number): string {
   const seconds = Math.floor((Date.now() - ts) / 1000);
   if (seconds < 60) return `${seconds}s`;

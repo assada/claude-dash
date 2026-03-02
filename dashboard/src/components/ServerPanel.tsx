@@ -17,7 +17,7 @@ import { StatusIndicator } from "./StatusIndicator";
 import type { ServerStatus, ServerMetrics, SessionInfo, SessionState } from "@/lib/types";
 import type { PanelPosition } from "@/hooks/usePanelPositions";
 import type { PanelRect } from "./DotGridCanvas";
-import { EXPECTED_VERSION, timeSince, shortName } from "@/lib/format";
+import { EXPECTED_VERSION, isAgentOutdated, timeSince, shortName } from "@/lib/format";
 import { formatCost } from "@/lib/pricing";
 
 // Physics constants — matching robot-components exactly
@@ -672,9 +672,7 @@ export const ServerPanel = memo(function ServerPanel({
 
         {server.online &&
           server.agentVersion &&
-          EXPECTED_VERSION !== "dev" &&
-          server.agentVersion !== "dev" &&
-          server.agentVersion !== EXPECTED_VERSION && (
+          isAgentOutdated(server.agentVersion, EXPECTED_VERSION) && (
             <span
               className="text-orange-500 text-[11px] font-bold pointer-events-none"
               title={`Agent ${server.agentVersion} — expected ${EXPECTED_VERSION}`}

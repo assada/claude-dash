@@ -11,6 +11,8 @@ RUN npm ci
 FROM base AS builder
 WORKDIR /app
 ARG DATABASE_PROVIDER=postgresql
+ARG AGENT_VERSION=dev
+ENV NEXT_PUBLIC_AGENT_VERSION=$AGENT_VERSION
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN bash prisma/setup.sh

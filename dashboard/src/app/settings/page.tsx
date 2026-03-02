@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download, BarChart3, Cpu, FolderOpen, Server, Zap } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
-import { EXPECTED_VERSION } from "@/lib/format";
+import { EXPECTED_VERSION, isAgentOutdated } from "@/lib/format";
 import { formatCost, formatTokens } from "@/lib/pricing";
 
 interface UsageStats {
@@ -358,9 +358,7 @@ export default function SettingsPage() {
             const outdated =
               server.online &&
               server.agentVersion &&
-              EXPECTED_VERSION !== "dev" &&
-              server.agentVersion !== "dev" &&
-              server.agentVersion !== EXPECTED_VERSION;
+              isAgentOutdated(server.agentVersion, EXPECTED_VERSION);
 
             return (
               <div key={server.id} className="panel flex flex-col sm:flex-row sm:items-center gap-3 p-4">

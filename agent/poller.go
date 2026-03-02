@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 type SessionInfo struct {
@@ -118,12 +120,12 @@ func (p *Poller) poll() {
 			state = StateDead
 		} else {
 			state = detectState(paneText)
-			// Get last non-empty line as preview
-			lines := splitNonEmpty(paneText)
-			if len(lines) > 0 {
-				lastLine = lines[len(lines)-1]
-				if len(lastLine) > 120 {
-					lastLine = lastLine[:120]
+			lastLine = extractContentLine(paneText)
+			// Fallback: if smart extraction filtered everything out,
+			// show the raw last non-empty line — junk is better than nothing.
+			if lastLine == "" {
+				if raw := splitNonEmpty(paneText); len(raw) > 0 {
+					lastLine = truncateUTF8(raw[len(raw)-1], 120)
 				}
 			}
 		}
@@ -169,6 +171,89 @@ func (p *Poller) poll() {
 	}
 }
 
+// Chrome lines to skip when extracting content from Claude Code terminal.
+var (
+	// skipContaining — skip lines that contain any of these substrings.
+	skipContaining = []string{
+		"⏵",        // permission mode indicator
+		"shift+tab", // mode cycling hint
+		"esc to interrupt",
+	}
+
+	// skipPrefixes — skip lines starting with any of these.
+	skipPrefixes = []string{
+		"⎿", // sub-item continuation (tips, file lists, etc.)
+	}
+)
+
+// extractContentLine extracts the meaningful content line from Claude Code's
+// terminal output, skipping the bottom UI chrome (status bar, input box, tips).
+//
+// Claude Code terminal layout (bottom to top):
+//
+//	status bar:  ⏵⏵ bypass permissions on (shift+tab to cycle)
+//	border:      ──────────────────────────────────
+//	input box:   ❯ Press up to edit queued messages
+//	border:      ──────────────────────────────────
+//	junk:        ⎿  Tip: Use /agents to optimize...
+//	content:     · Booping… (thinking)   ← we want this
+func extractContentLine(paneText string) string {
+	lines := splitLines(paneText)
+
+	for i := len(lines) - 1; i >= 0; i-- {
+		trimmed := trimSpace(lines[i])
+
+		if trimmed == "" {
+			continue
+		}
+
+		// Skip input box: everything between two border lines (inclusive).
+		if isBorderLine(trimmed) {
+			for i--; i >= 0; i-- {
+				if isBorderLine(trimSpace(lines[i])) {
+					break
+				}
+			}
+			continue
+		}
+
+		if shouldSkipLine(trimmed) {
+			continue
+		}
+
+		// Found a content line.
+		return truncateUTF8(trimmed, 120)
+	}
+
+	return ""
+}
+
+func shouldSkipLine(line string) bool {
+	for _, s := range skipContaining {
+		if strings.Contains(line, s) {
+			return true
+		}
+	}
+	for _, p := range skipPrefixes {
+		if strings.HasPrefix(line, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// isBorderLine checks if a line is a horizontal border (──────).
+func isBorderLine(line string) bool {
+	count, total := 0, 0
+	for _, r := range line {
+		total++
+		if r == '─' || r == '━' || r == '═' {
+			count++
+		}
+	}
+	return total >= 5 && count*100/total > 60
+}
+
 func splitNonEmpty(s string) []string {
 	var result []string
 	for _, line := range splitLines(s) {
@@ -193,6 +278,21 @@ func splitLines(s string) []string {
 		lines = append(lines, s[start:])
 	}
 	return lines
+}
+
+// truncateUTF8 truncates s to at most maxRunes runes without breaking multi-byte characters.
+func truncateUTF8(s string, maxRunes int) string {
+	if utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	runes := 0
+	for i := range s {
+		if runes == maxRunes {
+			return s[:i]
+		}
+		runes++
+	}
+	return s
 }
 
 func trimSpace(s string) string {

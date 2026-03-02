@@ -1,5 +1,5 @@
 BINARY=ccdash-agent
-VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION)"
 
 .PHONY: all build clean linux-amd64 linux-arm64 darwin-arm64

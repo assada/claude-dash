@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         DATABASE_PROVIDER: sqlite
+        AGENT_VERSION: ${AGENT_VERSION:-dev}
     ports:
       - "3000:3000"
     env_file: .env
