@@ -52,8 +52,6 @@ jobs:
 
       - name: Build
         working-directory: agent
-        env:
-          CGO_ENABLED: 0
         run: |
           VERSION=${GITHUB_REF_NAME}
           go build -ldflags "-s -w -X main.version=${VERSION}" -o ccdash-agent-darwin-arm64 .
