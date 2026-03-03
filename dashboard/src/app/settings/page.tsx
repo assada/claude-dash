@@ -257,7 +257,7 @@ function EditForm({ editingServer, setEditingServer, isNew, saving, onSave, onCa
   onCancel: () => void;
 }) {
   return (
-    <div className="surface p-6">
+    <div className="surface p-6 mb-4">
       <span className="block text-[15px] font-semibold text-text-secondary mb-4">
         {isNew ? "Add Server" : "Edit Server"}
       </span>
@@ -436,6 +436,18 @@ export default function SettingsPage() {
           </button>
         </div>
 
+        {/* Add server form */}
+        {editingServer && isNew && (
+          <EditForm
+            editingServer={editingServer}
+            setEditingServer={setEditingServer}
+            isNew={true}
+            saving={saving}
+            onSave={handleSave}
+            onCancel={() => { setEditingServer(null); setIsNew(false); }}
+          />
+        )}
+
         {/* Server list */}
         <div className="flex flex-col gap-2 mb-6">
           {servers.map((server) => {
@@ -540,17 +552,6 @@ export default function SettingsPage() {
           <CopyCommand command={INSTALL_CMD} />
         </div>
 
-        {/* Add server form */}
-        {editingServer && isNew && (
-          <EditForm
-            editingServer={editingServer}
-            setEditingServer={setEditingServer}
-            isNew={true}
-            saving={saving}
-            onSave={handleSave}
-            onCancel={() => { setEditingServer(null); setIsNew(false); }}
-          />
-        )}
         <div className="text-[10px] text-text-faint/50 text-center mt-8 mb-2">
           dashboard {EXPECTED_VERSION}
         </div>

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 
 const STORAGE_KEY = "panel-positions";
 const PANEL_WIDTH = 320;
+const ROW_H = 300;
 const GAP = 24;
 const PAD_X = 32;
 const PAD_Y = 56; // below header area
@@ -28,22 +29,58 @@ function save(positions: Record<string, PanelPosition>) {
   } catch {}
 }
 
+function calcCols(containerWidth: number): number {
+  return Math.max(
+    1,
+    Math.floor((containerWidth - PAD_X * 2 + GAP) / (PANEL_WIDTH + GAP))
+  );
+}
+
+/** Arrange all ids into a clean masonry grid (ignores existing positions). */
 function arrange(
   ids: string[],
   containerWidth: number
 ): Record<string, PanelPosition> {
-  const cols = Math.max(
-    1,
-    Math.floor((containerWidth - PAD_X * 2 + GAP) / (PANEL_WIDTH + GAP))
-  );
-
-  // Column heights tracker for masonry-ish layout
+  const cols = calcCols(containerWidth);
   const colHeights = new Array(cols).fill(0);
-  const ROW_H = 300;
 
   const result: Record<string, PanelPosition> = {};
   for (const id of ids) {
-    // Find shortest column
+    let minCol = 0;
+    for (let c = 1; c < cols; c++) {
+      if (colHeights[c] < colHeights[minCol]) minCol = c;
+    }
+    result[id] = {
+      x: PAD_X + minCol * (PANEL_WIDTH + GAP),
+      y: PAD_Y + colHeights[minCol],
+    };
+    colHeights[minCol] += ROW_H + GAP;
+  }
+  return result;
+}
+
+/**
+ * Place new panels into the shortest column, respecting existing panel
+ * positions. Existing panels are not moved.
+ */
+function arrangeNew(
+  newIds: string[],
+  existing: Record<string, PanelPosition>,
+  containerWidth: number
+): Record<string, PanelPosition> {
+  const cols = calcCols(containerWidth);
+  const colHeights = new Array(cols).fill(0);
+
+  // Seed column heights from existing panel positions
+  for (const pos of Object.values(existing)) {
+    const col = Math.round((pos.x - PAD_X) / (PANEL_WIDTH + GAP));
+    if (col >= 0 && col < cols) {
+      colHeights[col] = Math.max(colHeights[col], pos.y - PAD_Y + ROW_H + GAP);
+    }
+  }
+
+  const result: Record<string, PanelPosition> = {};
+  for (const id of newIds) {
     let minCol = 0;
     for (let c = 1; c < cols; c++) {
       if (colHeights[c] < colHeights[minCol]) minCol = c;
@@ -58,54 +95,40 @@ function arrange(
 }
 
 export function usePanelPositions(serverIds: string[]) {
-  const [positions, setPositions] = useState<Record<string, PanelPosition>>({});
-  const initializedRef = useRef(false);
+  const [positions, setPositions] = useState<Record<string, PanelPosition>>(load);
   const serverIdsRef = useRef(serverIds);
   serverIdsRef.current = serverIds;
 
-  // Initialize: load saved positions, auto-arrange any missing panels
+  // Fit new panels into free spots when serverIds change
   useEffect(() => {
     if (serverIds.length === 0) return;
 
-    const saved = load();
     const width =
       typeof window !== "undefined" ? window.innerWidth : 1200;
 
-    // Find IDs that don't have a saved position
-    const missing = serverIds.filter((id) => !saved[id]);
-
-    if (missing.length > 0) {
-      // Arrange only the missing panels, offset by existing ones
-      const arranged = arrange(missing, width);
-
-      // Shift arranged panels below existing ones
-      if (Object.keys(saved).length > 0 && missing.length < serverIds.length) {
-        const maxY = Math.max(
-          ...Object.values(saved).map((p) => p.y + 300),
-          0
-        );
-        for (const id of missing) {
-          arranged[id].y += maxY + GAP;
-        }
-      }
-
-      const merged = { ...saved, ...arranged };
-      // Only keep positions for current server IDs
-      const cleaned: Record<string, PanelPosition> = {};
+    setPositions((prev) => {
+      // Keep only positions for current servers
+      const kept: Record<string, PanelPosition> = {};
       for (const id of serverIds) {
-        if (merged[id]) cleaned[id] = merged[id];
+        if (prev[id]) kept[id] = prev[id];
       }
-      setPositions(cleaned);
-      save(cleaned);
-    } else {
-      // All panels have saved positions
-      const cleaned: Record<string, PanelPosition> = {};
-      for (const id of serverIds) {
-        if (saved[id]) cleaned[id] = saved[id];
+
+      const missing = serverIds.filter((id) => !kept[id]);
+      if (missing.length === 0) return kept;
+
+      if (Object.keys(kept).length === 0) {
+        // No saved positions at all — fresh grid
+        const arranged = arrange(serverIds, width);
+        save(arranged);
+        return arranged;
       }
-      setPositions(cleaned);
-    }
-    initializedRef.current = true;
+
+      // Place new panels in free spots, keep existing untouched
+      const newPositions = arrangeNew(missing, kept, width);
+      const merged = { ...kept, ...newPositions };
+      save(merged);
+      return merged;
+    });
   }, [serverIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updatePosition = useCallback(
@@ -127,8 +150,24 @@ export function usePanelPositions(serverIds: string[]) {
     save(arranged);
   }, []);
 
+  // Ensure positions exist for all serverIds on first render
+  // (before useEffect fires).
+  const completePositions = useMemo(() => {
+    if (serverIds.every((id) => positions[id])) return positions;
+    const width = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const kept: Record<string, PanelPosition> = {};
+    for (const id of serverIds) {
+      if (positions[id]) kept[id] = positions[id];
+    }
+    const missing = serverIds.filter((id) => !kept[id]);
+    const newPositions = Object.keys(kept).length > 0
+      ? arrangeNew(missing, kept, width)
+      : arrange(serverIds, width);
+    return { ...kept, ...(Object.keys(kept).length > 0 ? newPositions : newPositions) };
+  }, [positions, serverIds]);
+
   return useMemo(
-    () => ({ positions, updatePosition, arrangeAll }),
-    [positions, updatePosition, arrangeAll]
+    () => ({ positions: completePositions, updatePosition, arrangeAll }),
+    [completePositions, updatePosition, arrangeAll]
   );
 }
