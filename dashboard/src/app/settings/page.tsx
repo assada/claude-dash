@@ -340,7 +340,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [updatingServer, setUpdatingServer] = useState<string | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
-  const { soundEnabled, browserEnabled, toggleSound, toggleBrowser } = useNotificationPrefs();
+  const { soundEnabled, browserEnabled, permission, toggleSound, toggleBrowser, requestPermission } = useNotificationPrefs();
 
   const handleUpdate = async (serverId: string) => {
     setUpdatingServer(serverId);
@@ -571,18 +571,33 @@ export default function SettingsPage() {
             <div className="border-t border-border-subtle" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {browserEnabled ? <Bell size={16} className="text-ok" /> : <BellOff size={16} className="text-text-faint" />}
+                {browserEnabled && permission === "granted" ? <Bell size={16} className="text-ok" /> : <BellOff size={16} className="text-text-faint" />}
                 <div>
                   <div className="text-[13px] text-text-primary">Browser notifications</div>
-                  <div className="text-[11px] text-text-faint">Show desktop notifications with direct links to sessions</div>
+                  <div className="text-[11px] text-text-faint">
+                    {permission === "denied"
+                      ? "Blocked by browser — allow in site settings"
+                      : "Show desktop notifications with direct links to sessions"}
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={toggleBrowser}
-                className={`relative w-10 h-[22px] rounded-full transition-colors ${browserEnabled ? "bg-ok" : "bg-surface-3"}`}
-              >
-                <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${browserEnabled ? "left-[21px]" : "left-[3px]"}`} />
-              </button>
+              {permission === "denied" ? (
+                <span className="text-[11px] text-warn shrink-0">Blocked</span>
+              ) : permission === "default" ? (
+                <button
+                  onClick={async () => { await requestPermission(); toggleBrowser(); }}
+                  className="btn-skin px-3 py-1 text-[11px] font-medium shrink-0"
+                >
+                  Allow
+                </button>
+              ) : (
+                <button
+                  onClick={toggleBrowser}
+                  className={`relative w-10 h-[22px] rounded-full transition-colors ${browserEnabled ? "bg-ok" : "bg-surface-3"}`}
+                >
+                  <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${browserEnabled ? "left-[21px]" : "left-[3px]"}`} />
+                </button>
+              )}
             </div>
           </div>
         </div>

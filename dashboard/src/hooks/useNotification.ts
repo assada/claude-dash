@@ -14,9 +14,15 @@ function readPref(key: string, fallback: boolean): boolean {
   return v === null ? fallback : v === "true";
 }
 
+function getPermission(): NotificationPermission {
+  if (typeof Notification === "undefined") return "denied";
+  return Notification.permission;
+}
+
 export function useNotificationPrefs() {
   const [soundEnabled, setSoundEnabled] = useState(() => readPref(LS_SOUND, true));
   const [browserEnabled, setBrowserEnabled] = useState(() => readPref(LS_BROWSER, true));
+  const [permission, setPermission] = useState<NotificationPermission>(getPermission);
 
   const toggleSound = useCallback(() => {
     setSoundEnabled((v) => {
@@ -26,15 +32,24 @@ export function useNotificationPrefs() {
     });
   }, []);
 
-  const toggleBrowser = useCallback(() => {
-    setBrowserEnabled((v) => {
-      const next = !v;
-      localStorage.setItem(LS_BROWSER, String(next));
-      return next;
-    });
+  const toggleBrowser = useCallback(async () => {
+    const next = !browserEnabled;
+    if (next && typeof Notification !== "undefined" && Notification.permission === "default") {
+      const result = await Notification.requestPermission();
+      setPermission(result);
+      if (result === "denied") return; // don't enable if denied
+    }
+    setBrowserEnabled(next);
+    localStorage.setItem(LS_BROWSER, String(next));
+  }, [browserEnabled]);
+
+  const requestPermission = useCallback(async () => {
+    if (typeof Notification === "undefined") return;
+    const result = await Notification.requestPermission();
+    setPermission(result);
   }, []);
 
-  return { soundEnabled, browserEnabled, toggleSound, toggleBrowser };
+  return { soundEnabled, browserEnabled, permission, toggleSound, toggleBrowser, requestPermission };
 }
 
 export function useNotification(servers: ServerStatus[]) {
@@ -50,7 +65,6 @@ export function useNotification(servers: ServerStatus[]) {
       if (e.key === LS_SOUND) soundEnabled.current = e.newValue !== "false";
       if (e.key === LS_BROWSER) browserEnabled.current = e.newValue !== "false";
     };
-    // Also read once on mount in case changed in another tab
     soundEnabled.current = readPref(LS_SOUND, true);
     browserEnabled.current = readPref(LS_BROWSER, true);
     window.addEventListener("storage", onStorage);
@@ -125,44 +139,34 @@ export function useNotification(servers: ServerStatus[]) {
     if (didDone && soundEnabled.current) playDone();
     if (alertSession && soundEnabled.current) playAlert();
 
-    if (doneSession && browserEnabled.current) {
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        const { sessionName, serverName, serverId, sessionId } = doneSession;
-        const n = new Notification("Session done", {
-          body: `${sessionName} @ ${serverName}`,
-          icon: "/favicon.ico",
-        });
-        n.onclick = () => {
-          window.focus();
-          router.push(`/server/${serverId}/session/${sessionId}`);
-          n.close();
-        };
-      }
+    const canNotify = browserEnabled.current &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "granted";
+
+    if (doneSession && canNotify) {
+      const { sessionName, serverName, serverId, sessionId } = doneSession;
+      const n = new Notification("Session done", {
+        body: `${sessionName} @ ${serverName}`,
+        icon: "/favicon.ico",
+      });
+      n.onclick = () => {
+        window.focus();
+        router.push(`/server/${serverId}/session/${sessionId}`);
+        n.close();
+      };
     }
 
-    if (alertSession && browserEnabled.current) {
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        const { sessionName, serverName, serverId, sessionId } = alertSession;
-        const n = new Notification("Session needs attention", {
-          body: `${sessionName} @ ${serverName}`,
-          icon: "/favicon.ico",
-        });
-        n.onclick = () => {
-          window.focus();
-          router.push(`/server/${serverId}/session/${sessionId}`);
-          n.close();
-        };
-      }
+    if (alertSession && canNotify) {
+      const { sessionName, serverName, serverId, sessionId } = alertSession;
+      const n = new Notification("Session needs attention", {
+        body: `${sessionName} @ ${serverName}`,
+        icon: "/favicon.ico",
+      });
+      n.onclick = () => {
+        window.focus();
+        router.push(`/server/${serverId}/session/${sessionId}`);
+        n.close();
+      };
     }
   }, [servers, playDone, playAlert, router]);
-
-  // Request notification permission on mount
-  useEffect(() => {
-    if (
-      typeof Notification !== "undefined" &&
-      Notification.permission === "default"
-    ) {
-      Notification.requestPermission();
-    }
-  }, []);
 }
