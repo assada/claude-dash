@@ -32,10 +32,14 @@ export function useSessionState() {
   const prevStatesRef = useRef<Map<string, SessionState>>(new Map());
   // Track sessions in "waiting" state (dashboard-side only)
   const waitingSetRef = useRef<Set<string>>(new Set());
+  // Sessions currently being viewed (session page is mounted)
+  const activeViewsRef = useRef<Set<string>>(new Set());
 
   const processServers = useCallback((incoming: ServerStatus[]) => {
     const prevStates = prevStatesRef.current;
     const waitingSet = waitingSetRef.current;
+    const activeViews = activeViewsRef.current;
+    const isTabVisible = typeof document !== "undefined" && document.visibilityState === "visible";
 
     const filtered = incoming.map((server) => {
       const sessions = server.sessions
@@ -45,8 +49,11 @@ export function useSessionState() {
           const prevState = prevStates.get(key);
 
           // Detect working → idle transition → set to waiting
+          // (unless user is actively viewing this session)
           if (prevState === "working" && s.state === "idle") {
-            waitingSet.add(key);
+            if (!(activeViews.has(key) && isTabVisible)) {
+              waitingSet.add(key);
+            }
           }
 
           // If agent reports non-idle, remove from waiting
@@ -172,7 +179,6 @@ export function useSessionState() {
     const key = `${serverId}:${sessionId}`;
     if (waitingSetRef.current.has(key)) {
       waitingSetRef.current.delete(key);
-      // Force re-render by re-processing current state
       setServers((prev) =>
         prev.map((server) => ({
           ...server,
@@ -186,13 +192,28 @@ export function useSessionState() {
     }
   }, []);
 
+  // Register a session as actively viewed. Returns cleanup function.
+  // When visible + viewing → auto-clears waiting state.
+  const startViewing = useCallback((serverId: string, sessionId: string) => {
+    const key = `${serverId}:${sessionId}`;
+    activeViewsRef.current.add(key);
+    // Clear waiting immediately if tab is visible
+    if (document.visibilityState === "visible") {
+      markSeen(serverId, sessionId);
+    }
+    return () => {
+      activeViewsRef.current.delete(key);
+    };
+  }, [markSeen]);
+
   return useMemo(
     () => ({
       servers,
       createSession,
       killSession,
       markSeen,
+      startViewing,
     }),
-    [servers, createSession, killSession, markSeen]
+    [servers, createSession, killSession, markSeen, startViewing]
   );
 }

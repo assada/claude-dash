@@ -12,12 +12,25 @@ export default function SessionPage({
 }) {
   const { serverId, sessionId } = use(params);
   const router = useRouter();
-  const { servers, markSeen } = useSessionStateContext();
+  const { servers, markSeen, startViewing } = useSessionStateContext();
 
-  // Mark "waiting" session as seen when terminal is opened
+  // Register as actively viewing this session.
+  // Auto-clears "waiting" when tab is visible, stays "done" when tab is hidden.
   useEffect(() => {
-    markSeen(serverId, sessionId);
-  }, [serverId, sessionId, markSeen]);
+    const stopViewing = startViewing(serverId, sessionId);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        markSeen(serverId, sessionId);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      stopViewing();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [serverId, sessionId, startViewing, markSeen]);
 
   // Allow pinch-to-zoom on terminal page (override layout viewport)
   useEffect(() => {

@@ -77,7 +77,6 @@ export function SessionRow({
   cost?: number;
 }) {
   const isAttention = session.state === "needs_attention";
-  const isWaiting = session.state === "waiting";
   const isDead = session.state === "dead";
   const isWorking = session.state === "working";
 
@@ -87,8 +86,6 @@ export function SessionRow({
       className={`group relative flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors rounded-[5px] ${
         isAttention
           ? "bg-red-950/30 hover:bg-red-950/50"
-          : isWaiting
-          ? "bg-green-950/30 hover:bg-green-950/50"
           : "hover:bg-[rgba(64,64,64,0.3)]"
       } ${isDead ? "opacity-40" : ""}`}
     >
