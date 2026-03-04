@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Settings, Terminal, LayoutGrid } from "lucide-react";
@@ -26,7 +26,10 @@ export default function Home() {
   const router = useRouter();
   const isMobile = useIsMobile();
 
-  const [metricsVisible, setMetricsVisible] = useState(true);
+  const [metricsVisible, setMetricsVisible] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("metrics-visible") !== "false";
+  });
   const [zOrder, setZOrder] = useState<string[]>([]);
   const panelRectsRef = useRef<Record<string, PanelRect>>({});
 
@@ -49,12 +52,6 @@ export default function Home() {
   }, [servers]);
 
   useNotification(servers);
-
-  useEffect(() => {
-    if (localStorage.getItem("metrics-visible") === "false") {
-      setMetricsVisible(false);
-    }
-  }, []);
 
   const toggleMetrics = useCallback(() => {
     setMetricsVisible((v) => {

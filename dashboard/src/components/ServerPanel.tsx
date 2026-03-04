@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
+import { motion } from "framer-motion";
 import {
   GripVertical,
   ChevronUp,
@@ -156,11 +156,6 @@ function formatUptime(secs: number): string {
   return `${minutes}m`;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(0)}M`;
-  return `${(bytes / 1024 ** 3).toFixed(1)}G`;
-}
-
 const GRAPH_BARS = 8;
 
 // Global cache — survives module re-evaluation by bundler across route changes
@@ -227,16 +222,6 @@ function MetricsBar({ serverId, metrics }: { serverId: string; metrics: ServerMe
   }
 
   const history = metricsCache.get(serverId)!;
-
-  // Force re-render when snapshot changes
-  const [, setTick] = useState(0);
-  const prevKeyRef = useRef(snapshotKey);
-  useEffect(() => {
-    if (snapshotKey !== prevKeyRef.current) {
-      prevKeyRef.current = snapshotKey;
-      setTick((t) => t + 1);
-    }
-  }, [snapshotKey]);
 
   return (
     <div className="px-4 py-2 border-t border-border-subtle grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -332,8 +317,6 @@ export const ServerPanel = memo(function ServerPanel({
   const activeCount = server.sessions.filter(
     (s) => s.state !== "dead"
   ).length;
-
-  const hasMetrics = !!(server.online && server.metrics && showMetrics);
 
   useEffect(() => {
     const el = contentRef.current;

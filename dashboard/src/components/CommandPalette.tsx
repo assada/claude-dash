@@ -22,7 +22,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { StatusIndicator } from "./StatusIndicator";
 import { useSessionStateContext } from "@/hooks/useSessionState";
-import type { ServerStatus, SessionState } from "@/lib/types";
+import type { SessionState } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
 /*  Context — pages register overrides for dashboard-specific actions  */
@@ -42,12 +42,15 @@ const CommandPaletteCtx = createContext<{
 export function useCommandPaletteActions(actions: PageActions) {
   const { setPageActions } = useContext(CommandPaletteCtx);
   const actionsRef = useRef(actions);
-  actionsRef.current = actions;
+
+  useEffect(() => {
+    actionsRef.current = actions;
+  });
 
   useEffect(() => {
     setPageActions(actionsRef.current);
     return () => setPageActions({});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setPageActions]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -60,14 +63,10 @@ export function CommandPaletteProvider({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const pageActionsRef = useRef<PageActions>({});
+  const [pageActions, setPageActions] = useState<PageActions>({});
 
   const ctxValue = useMemo(
-    () => ({
-      setPageActions: (a: PageActions) => {
-        pageActionsRef.current = a;
-      },
-    }),
+    () => ({ setPageActions }),
     []
   );
 
@@ -91,7 +90,7 @@ export function CommandPaletteProvider({
           <PaletteUI
             key="command-palette"
             onClose={() => setOpen(false)}
-            pageActions={pageActionsRef.current}
+            pageActions={pageActions}
           />
         )}
       </AnimatePresence>
@@ -129,10 +128,16 @@ function PaletteUI({
 }) {
   const { servers } = useSessionStateContext();
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQueryRaw] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Reset selection when query changes
+  const setQuery = useCallback((q: string) => {
+    setQueryRaw(q);
+    setSelectedIndex(0);
+  }, []);
 
   const commands = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = [];
@@ -216,11 +221,6 @@ function PaletteUI({
     const q = query.toLowerCase();
     return commands.filter((c) => c.label.toLowerCase().includes(q));
   }, [commands, query]);
-
-  // Reset selection on query change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
 
   // Autofocus
   useEffect(() => {

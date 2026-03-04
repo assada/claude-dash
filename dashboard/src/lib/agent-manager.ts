@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus, UsageEntry, ServerUsage, SessionUsage } from "./types";
+import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus, ServerUsage, SessionUsage } from "./types";
 import { calculateEntryCost } from "./pricing";
 import { prisma } from "./prisma";
 

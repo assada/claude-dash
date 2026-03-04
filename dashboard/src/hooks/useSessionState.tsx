@@ -100,45 +100,49 @@ export function useSessionState() {
     });
   }, []);
 
-  const connect = useCallback(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "subscribe" }));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "state_update" && msg.servers) {
-          processServers(msg.servers);
-        }
-      } catch (e) {
-        console.warn("[ws] Failed to parse message:", (e as Error).message);
-      }
-    };
-
-    ws.onclose = () => {
-      wsRef.current = null;
-      reconnectTimer.current = setTimeout(connect, 2000);
-    };
-
-    ws.onerror = () => {
-      ws.close();
-    };
-  }, [processServers]);
+  const connectRef = useRef<() => void>(null);
 
   useEffect(() => {
-    connect();
+    const doConnect = () => {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "subscribe" }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "state_update" && msg.servers) {
+            processServers(msg.servers);
+          }
+        } catch (e) {
+          console.warn("[ws] Failed to parse message:", (e as Error).message);
+        }
+      };
+
+      ws.onclose = () => {
+        wsRef.current = null;
+        reconnectTimer.current = setTimeout(doConnect, 2000);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    };
+
+    connectRef.current = doConnect;
+    doConnect();
+
     return () => {
       if (reconnectTimer.current) {
         clearTimeout(reconnectTimer.current);
       }
       wsRef.current?.close();
     };
-  }, [connect]);
+  }, [processServers]);
 
   const createSession = useCallback(
     (serverId: string, workdir: string, name: string, dangerouslySkipPermissions?: boolean) => {

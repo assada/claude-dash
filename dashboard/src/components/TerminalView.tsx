@@ -282,7 +282,6 @@ export function TerminalView({
       fitRef.current = null;
       wsRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverId, sessionId]);
 
   const shortName = formatShortName(sessionName);
@@ -319,7 +318,7 @@ export function TerminalView({
             <span className="text-[11px] text-warn ml-2">disconnected</span>
           )}
         </div>
-        <button onClick={onBack} className="btn-ghost p-1" title="Close">
+        <button onClick={onBack} className="btn-ghost p-1" data-tooltip="Close">
           <X size={14} />
         </button>
       </div>

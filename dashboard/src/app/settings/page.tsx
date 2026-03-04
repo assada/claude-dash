@@ -357,7 +357,7 @@ export default function SettingsPage() {
     setTimeout(() => setUpdatingServer(null), 8000);
   };
 
-  const fetchServers = async () => {
+  const fetchServers = useCallback(async () => {
     try {
       const res = await fetch("/api/servers");
       const data = await res.json();
@@ -365,22 +365,31 @@ export default function SettingsPage() {
     } catch (e) {
       console.error("[settings] Failed to fetch servers:", e);
     }
-  };
-
-  const fetchUsage = async () => {
-    try {
-      const res = await fetch("/api/usage");
-      if (res.ok) setUsageStats(await res.json());
-    } catch (e) {
-      console.error("[settings] Failed to fetch usage:", e);
-    }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchServers();
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/servers");
+        const data = await res.json();
+        if (active) setServers(data.servers || []);
+      } catch (e) {
+        console.error("[settings] Failed to fetch servers:", e);
+      }
+    };
+    const fetchUsage = async () => {
+      try {
+        const res = await fetch("/api/usage");
+        if (res.ok && active) setUsageStats(await res.json());
+      } catch (e) {
+        console.error("[settings] Failed to fetch usage:", e);
+      }
+    };
+    poll();
     fetchUsage();
-    const interval = setInterval(fetchServers, 3000);
-    return () => clearInterval(interval);
+    const interval = setInterval(poll, 3000);
+    return () => { active = false; clearInterval(interval); };
   }, []);
 
   const handleSave = async () => {

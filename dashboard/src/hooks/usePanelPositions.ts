@@ -97,39 +97,11 @@ function arrangeNew(
 export function usePanelPositions(serverIds: string[]) {
   const [positions, setPositions] = useState<Record<string, PanelPosition>>(load);
   const serverIdsRef = useRef(serverIds);
-  serverIdsRef.current = serverIds;
 
-  // Fit new panels into free spots when serverIds change
   useEffect(() => {
-    if (serverIds.length === 0) return;
+    serverIdsRef.current = serverIds;
+  });
 
-    const width =
-      typeof window !== "undefined" ? window.innerWidth : 1200;
-
-    setPositions((prev) => {
-      // Keep only positions for current servers
-      const kept: Record<string, PanelPosition> = {};
-      for (const id of serverIds) {
-        if (prev[id]) kept[id] = prev[id];
-      }
-
-      const missing = serverIds.filter((id) => !kept[id]);
-      if (missing.length === 0) return kept;
-
-      if (Object.keys(kept).length === 0) {
-        // No saved positions at all — fresh grid
-        const arranged = arrange(serverIds, width);
-        save(arranged);
-        return arranged;
-      }
-
-      // Place new panels in free spots, keep existing untouched
-      const newPositions = arrangeNew(missing, kept, width);
-      const merged = { ...kept, ...newPositions };
-      save(merged);
-      return merged;
-    });
-  }, [serverIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updatePosition = useCallback(
     (id: string, pos: PanelPosition) => {
@@ -150,20 +122,28 @@ export function usePanelPositions(serverIds: string[]) {
     save(arranged);
   }, []);
 
-  // Ensure positions exist for all serverIds on first render
-  // (before useEffect fires).
+  // Ensure positions exist for all serverIds — compute missing positions
+  // and persist to localStorage + state.
   const completePositions = useMemo(() => {
-    if (serverIds.every((id) => positions[id])) return positions;
-    const width = typeof window !== "undefined" ? window.innerWidth : 1200;
+    // Only keep positions for current servers
     const kept: Record<string, PanelPosition> = {};
     for (const id of serverIds) {
       if (positions[id]) kept[id] = positions[id];
     }
+
     const missing = serverIds.filter((id) => !kept[id]);
+    if (missing.length === 0 && Object.keys(kept).length === Object.keys(positions).length) {
+      return positions;
+    }
+    if (missing.length === 0) return kept;
+
+    const width = typeof window !== "undefined" ? window.innerWidth : 1200;
     const newPositions = Object.keys(kept).length > 0
       ? arrangeNew(missing, kept, width)
       : arrange(serverIds, width);
-    return { ...kept, ...(Object.keys(kept).length > 0 ? newPositions : newPositions) };
+    const merged = { ...kept, ...newPositions };
+    save(merged);
+    return merged;
   }, [positions, serverIds]);
 
   return useMemo(

@@ -68,6 +68,7 @@ export function NewSessionModal({
   const [skipPermissions, setSkipPermissions] = useState(false);
 
   // Reset form when modal opens or server count changes (not on metric updates)
+  const serverCount = servers.length;
   useEffect(() => {
     if (open) {
       setServerId(defaultServerId || servers.find((s) => s.online)?.id || servers[0]?.id || "");
@@ -75,10 +76,11 @@ export function NewSessionModal({
       setName("");
       setSkipPermissions(false);
     }
-  }, [open, defaultServerId, servers.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultServerId, serverCount]);
 
   const selectedServer = servers.find((s) => s.id === serverId);
-  const dirs = selectedServer?.dirs || [];
+  const dirs = useMemo(() => selectedServer?.dirs || [], [selectedServer?.dirs]);
 
   const resolved = useMemo(() => {
     if (!workdir.trim()) return "";
@@ -119,7 +121,7 @@ export function NewSessionModal({
             <span className="text-[17px] font-semibold text-text-secondary">
               New Session
             </span>
-            <button onClick={onClose} className="btn-ghost p-1">
+            <button onClick={onClose} className="btn-ghost p-1" data-tooltip="Close">
               <X size={16} />
             </button>
           </div>
