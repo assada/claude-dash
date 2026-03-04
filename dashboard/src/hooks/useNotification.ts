@@ -47,6 +47,10 @@ export function useNotificationPrefs() {
     if (typeof Notification === "undefined") return;
     const result = await Notification.requestPermission();
     setPermission(result);
+    if (result === "granted") {
+      setBrowserEnabled(true);
+      localStorage.setItem(LS_BROWSER, "true");
+    }
   }, []);
 
   return { soundEnabled, browserEnabled, permission, toggleSound, toggleBrowser, requestPermission };

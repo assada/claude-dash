@@ -585,7 +585,7 @@ export default function SettingsPage() {
                 <span className="text-[11px] text-warn shrink-0">Blocked</span>
               ) : permission === "default" ? (
                 <button
-                  onClick={async () => { await requestPermission(); toggleBrowser(); }}
+                  onClick={requestPermission}
                   className="btn-skin px-3 py-1 text-[11px] font-medium shrink-0"
                 >
                   Allow
