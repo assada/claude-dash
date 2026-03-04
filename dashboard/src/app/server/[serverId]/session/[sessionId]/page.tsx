@@ -12,7 +12,12 @@ export default function SessionPage({
 }) {
   const { serverId, sessionId } = use(params);
   const router = useRouter();
-  const { servers } = useSessionStateContext();
+  const { servers, markSeen } = useSessionStateContext();
+
+  // Mark "waiting" session as seen when terminal is opened
+  useEffect(() => {
+    markSeen(serverId, sessionId);
+  }, [serverId, sessionId, markSeen]);
 
   // Allow pinch-to-zoom on terminal page (override layout viewport)
   useEffect(() => {

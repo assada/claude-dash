@@ -1,6 +1,7 @@
 export type SessionState =
   | "idle"
   | "working"
+  | "waiting"
   | "needs_attention"
   | "starting"
   | "dead";

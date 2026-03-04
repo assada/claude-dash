@@ -113,6 +113,7 @@ interface CommandItem {
 
 const STATE_LABEL: Record<SessionState, string> = {
   idle: "Idle",
+  waiting: "Done",
   working: "Working",
   needs_attention: "Needs You",
   starting: "Starting",
@@ -330,7 +331,10 @@ function PaletteUI({
                 }`}
               >
                 {item.icon}
-                <span className="flex-1 text-[13px] text-text-secondary truncate">
+                <span
+                  className="flex-1 text-[13px] text-text-secondary truncate"
+                  style={{ direction: "rtl", textAlign: "left" }}
+                >
                   {item.label}
                 </span>
                 {item.badge}

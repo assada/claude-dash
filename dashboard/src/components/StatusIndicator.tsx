@@ -8,6 +8,7 @@ const stateConfig: Record<
   { color: string; label: string; pulse: boolean }
 > = {
   idle: { color: "#22c55e", label: "Idle", pulse: false },
+  waiting: { color: "#4ade80", label: "Done", pulse: true },
   working: { color: "#eab308", label: "Working", pulse: true },
   needs_attention: { color: "#ef4444", label: "Needs You", pulse: true },
   starting: { color: "#9ca3af", label: "Starting", pulse: true },

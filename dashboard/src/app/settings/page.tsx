@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download, BarChart3, Cpu, FolderOpen, Server, Zap } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download, BarChart3, Cpu, FolderOpen, Server, Zap, Volume2, VolumeX, Bell, BellOff } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
 import { EXPECTED_VERSION, isAgentOutdated } from "@/lib/format";
 import { formatCost, formatTokens } from "@/lib/pricing";
+import { useNotificationPrefs } from "@/hooks/useNotification";
 
 interface UsageStats {
   totals: {
@@ -76,7 +77,7 @@ function MiniBar({ items }: { items: Array<{ label: string; value: number; color
           key={item.label}
           className="h-full transition-all duration-300"
           style={{ width: `${(item.value / total) * 100}%`, backgroundColor: item.color }}
-          title={`${item.label}: ${formatCost(item.value)}`}
+          data-tooltip={`${item.label}: ${formatCost(item.value)}`}
         />
       ))}
     </div>
@@ -151,7 +152,7 @@ function UsageSection({ stats, servers }: { stats: UsageStats; servers: ServerSt
                   <div
                     className="w-full rounded-t bg-accent/70 hover:bg-accent transition-colors"
                     style={{ height: h }}
-                    title={`${d.day}: ${formatCost(d.cost)} · ${formatTokens(d.tokens)} tokens · ${d.entries} calls`}
+                    data-tooltip={`${d.day}: ${formatCost(d.cost)} · ${formatTokens(d.tokens)} tokens · ${d.entries} calls`}
                   />
                   <span className="text-[9px] text-text-faint mt-1">{label}</span>
                 </div>
@@ -189,7 +190,7 @@ function UsageSection({ stats, servers }: { stats: UsageStats; servers: ServerSt
             {stats.topWorkdirs.map((w) => (
               <div key={w.workdir} className="flex items-center gap-3 text-[12px]">
                 <FolderOpen size={12} className="text-text-faint shrink-0" />
-                <span className="text-text-secondary flex-1 truncate" title={w.workdir}>
+                <span className="text-text-secondary flex-1 truncate" data-tooltip={w.workdir}>
                   {w.workdir}
                 </span>
                 <span className="text-text-primary font-medium w-16 text-right">{formatCost(w.cost)}</span>
@@ -339,6 +340,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [updatingServer, setUpdatingServer] = useState<string | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const { soundEnabled, browserEnabled, toggleSound, toggleBrowser } = useNotificationPrefs();
 
   const handleUpdate = async (serverId: string) => {
     setUpdatingServer(serverId);
@@ -484,7 +486,7 @@ export default function SettingsPage() {
                       onClick={() => handleUpdate(server.id)}
                       disabled={updatingServer === server.id}
                       className="btn-skin flex items-center gap-1 px-2.5 py-1 text-[11px] !text-orange-500 shrink-0"
-                      title={`Update from ${server.agentVersion} to ${EXPECTED_VERSION}`}
+                      data-tooltip={`Update from ${server.agentVersion} to ${EXPECTED_VERSION}`}
                     >
                       <Download size={11} />
                       {updatingServer === server.id ? "Updating..." : "Update"}
@@ -505,6 +507,7 @@ export default function SettingsPage() {
                   <button
                     onClick={() => handleDelete(server.id)}
                     className="btn-danger p-1.5 shrink-0"
+                    data-tooltip="Delete"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -536,6 +539,44 @@ export default function SettingsPage() {
             <UsageSection stats={usageStats} servers={servers} />
           </div>
         )}
+
+        {/* Notifications */}
+        <div className="mb-6">
+          <span className="text-[15px] font-semibold text-text-secondary block mb-4">Notifications</span>
+          <div className="rounded-xl border border-surface-2 bg-surface-1/60 p-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {soundEnabled ? <Volume2 size={16} className="text-ok" /> : <VolumeX size={16} className="text-text-faint" />}
+                <div>
+                  <div className="text-[13px] text-text-primary">Sound notifications</div>
+                  <div className="text-[11px] text-text-faint">Play sounds when sessions complete or need attention</div>
+                </div>
+              </div>
+              <button
+                onClick={toggleSound}
+                className={`relative w-10 h-[22px] rounded-full transition-colors ${soundEnabled ? "bg-ok" : "bg-surface-3"}`}
+              >
+                <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${soundEnabled ? "left-[21px]" : "left-[3px]"}`} />
+              </button>
+            </div>
+            <div className="border-t border-border-subtle" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {browserEnabled ? <Bell size={16} className="text-ok" /> : <BellOff size={16} className="text-text-faint" />}
+                <div>
+                  <div className="text-[13px] text-text-primary">Browser notifications</div>
+                  <div className="text-[11px] text-text-faint">Show desktop notifications with direct links to sessions</div>
+                </div>
+              </div>
+              <button
+                onClick={toggleBrowser}
+                className={`relative w-10 h-[22px] rounded-full transition-colors ${browserEnabled ? "bg-ok" : "bg-surface-3"}`}
+              >
+                <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${browserEnabled ? "left-[21px]" : "left-[3px]"}`} />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Agent setup */}
         <div className="mb-6 rounded-xl border border-surface-2 bg-surface-1/60 p-5">

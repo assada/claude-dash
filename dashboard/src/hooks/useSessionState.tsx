@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from "react";
-import type { ServerStatus } from "@/lib/types";
+import type { ServerStatus, SessionState } from "@/lib/types";
 
 type SessionStateValue = ReturnType<typeof useSessionState>;
 
@@ -28,12 +28,43 @@ export function useSessionState() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track previous session states for working→idle detection
+  const prevStatesRef = useRef<Map<string, SessionState>>(new Map());
+  // Track sessions in "waiting" state (dashboard-side only)
+  const waitingSetRef = useRef<Set<string>>(new Set());
 
   const processServers = useCallback((incoming: ServerStatus[]) => {
-    const filtered = incoming.map((server) => ({
-      ...server,
-      sessions: server.sessions.filter((s) => s.state !== "dead"),
-    }));
+    const prevStates = prevStatesRef.current;
+    const waitingSet = waitingSetRef.current;
+
+    const filtered = incoming.map((server) => {
+      const sessions = server.sessions
+        .filter((s) => s.state !== "dead")
+        .map((s) => {
+          const key = `${server.id}:${s.id}`;
+          const prevState = prevStates.get(key);
+
+          // Detect working → idle transition → set to waiting
+          if (prevState === "working" && s.state === "idle") {
+            waitingSet.add(key);
+          }
+
+          // If agent reports non-idle, remove from waiting
+          if (s.state !== "idle") {
+            waitingSet.delete(key);
+          }
+
+          // Update prev state tracker
+          prevStates.set(key, s.state);
+
+          // Override state if in waiting set
+          const displayState = waitingSet.has(key) ? "waiting" : s.state;
+
+          return { ...s, state: displayState };
+        });
+
+      return { ...server, sessions };
+    });
 
     setServers((prev) => {
       if (
@@ -133,12 +164,31 @@ export function useSessionState() {
     []
   );
 
+  const markSeen = useCallback((serverId: string, sessionId: string) => {
+    const key = `${serverId}:${sessionId}`;
+    if (waitingSetRef.current.has(key)) {
+      waitingSetRef.current.delete(key);
+      // Force re-render by re-processing current state
+      setServers((prev) =>
+        prev.map((server) => ({
+          ...server,
+          sessions: server.sessions.map((s) =>
+            server.id === serverId && s.id === sessionId && s.state === "waiting"
+              ? { ...s, state: "idle" as const }
+              : s
+          ),
+        }))
+      );
+    }
+  }, []);
+
   return useMemo(
     () => ({
       servers,
       createSession,
       killSession,
+      markSeen,
     }),
-    [servers, createSession, killSession]
+    [servers, createSession, killSession, markSeen]
   );
 }

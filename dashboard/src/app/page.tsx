@@ -48,7 +48,7 @@ export default function Home() {
     return servers.reduce((sum, s) => sum + (s.usage?.totalCost ?? 0), 0);
   }, [servers]);
 
-  useNotification(attentionCount);
+  useNotification(servers);
 
   useEffect(() => {
     if (localStorage.getItem("metrics-visible") === "false") {
@@ -153,13 +153,19 @@ export default function Home() {
           </h1>
 
           {attentionCount > 0 && (
-            <span className="animate-shimmer px-2 py-0.5 rounded-md bg-warn text-white text-[11px] font-semibold">
+            <span
+              className="animate-shimmer px-2 py-0.5 rounded-md bg-warn text-white text-[11px] font-semibold pointer-events-auto"
+              data-tooltip={`${attentionCount} session${attentionCount > 1 ? "s" : ""} need${attentionCount === 1 ? "s" : ""} attention`}
+            >
               {attentionCount}
             </span>
           )}
 
           {totalCost > 0 && (
-            <span className="px-2 py-0.5 rounded-md bg-emerald-900/40 text-emerald-400 text-[11px] font-semibold">
+            <span
+              className="px-2 py-0.5 rounded-md bg-emerald-900/40 text-emerald-400 text-[11px] font-semibold pointer-events-auto"
+              data-tooltip="Total cost across all servers"
+            >
               {formatCost(totalCost)}
             </span>
           )}
@@ -169,7 +175,7 @@ export default function Home() {
               <button
                 onClick={arrangeAll}
                 className="btn-skin flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium !text-text-muted"
-                title="Arrange panels"
+                data-tooltip="Arrange panels"
               >
                 <LayoutGrid size={13} /> Arrange
               </button>
@@ -180,7 +186,7 @@ export default function Home() {
             >
               <Plus size={14} /> New Session
             </button>
-            <Link href="/settings" className="btn-ghost p-2">
+            <Link href="/settings" className="btn-ghost p-2" data-tooltip="Settings">
               <Settings size={16} />
             </Link>
           </div>

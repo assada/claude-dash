@@ -10,6 +10,7 @@ import {
   WifiOff,
   Loader2,
   CircleCheck,
+  CheckCheck,
   AlertCircle,
   Trash2,
 } from "lucide-react";
@@ -39,6 +40,8 @@ function stateIcon(state: SessionState) {
   switch (state) {
     case "working":
       return <Loader2 size={14} className="text-yellow-500 animate-spin" />;
+    case "waiting":
+      return <CheckCheck size={14} className="text-green-400 animate-pulse-done" />;
     case "needs_attention":
       return <AlertCircle size={14} className="text-warn" />;
     case "idle":
@@ -53,6 +56,7 @@ function stateIcon(state: SessionState) {
 function stateLabel(state: SessionState): string {
   switch (state) {
     case "idle": return "Idle";
+    case "waiting": return "Done";
     case "working": return "Working";
     case "needs_attention": return "Needs You";
     case "starting": return "Starting";
@@ -73,6 +77,7 @@ export function SessionRow({
   cost?: number;
 }) {
   const isAttention = session.state === "needs_attention";
+  const isWaiting = session.state === "waiting";
   const isDead = session.state === "dead";
   const isWorking = session.state === "working";
 
@@ -82,6 +87,8 @@ export function SessionRow({
       className={`group relative flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors rounded-[5px] ${
         isAttention
           ? "bg-red-950/30 hover:bg-red-950/50"
+          : isWaiting
+          ? "bg-green-950/30 hover:bg-green-950/50"
           : "hover:bg-[rgba(64,64,64,0.3)]"
       } ${isDead ? "opacity-40" : ""}`}
     >
@@ -118,7 +125,10 @@ export function SessionRow({
           {formatCost(cost)}
         </span>
       )}
-      <span className="text-[11px] text-text-faint shrink-0">
+      <span
+        className="text-[11px] text-text-faint shrink-0"
+        data-tooltip={`${stateLabel(session.state)} for ${timeSince(session.state_changed_at)}`}
+      >
         {timeSince(session.state_changed_at)}
       </span>
       {!isDead && (
@@ -128,7 +138,7 @@ export function SessionRow({
             if (confirm("Kill this session?")) onKill();
           }}
           className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 max-md:opacity-60 group-hover:opacity-100 transition-opacity btn-danger p-1"
-          title="Kill"
+          data-tooltip="Kill"
         >
           <Trash2 size={11} />
         </button>
@@ -648,24 +658,36 @@ export const ServerPanel = memo(function ServerPanel({
         </span>
 
         {server.usage && server.usage.totalCost > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 text-[10px] font-semibold pointer-events-none">
+          <span
+            className="px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 text-[10px] font-semibold"
+            data-tooltip={`Total cost: ${formatCost(server.usage.totalCost)}`}
+          >
             {formatCost(server.usage.totalCost)}
           </span>
         )}
 
         {attentionCount > 0 && (
-          <span className="animate-shimmer px-1.5 py-0.5 rounded bg-warn/20 text-warn text-[10px] font-semibold pointer-events-none">
+          <span
+            className="animate-shimmer px-1.5 py-0.5 rounded bg-warn/20 text-warn text-[10px] font-semibold"
+            data-tooltip={`${attentionCount} session${attentionCount > 1 ? "s" : ""} need${attentionCount === 1 ? "s" : ""} attention`}
+          >
             {attentionCount}
           </span>
         )}
 
         {server.online ? (
-          <span className="flex items-center gap-1 text-[10px] text-ok pointer-events-none">
+          <span
+            className="flex items-center gap-1 text-[10px] text-ok"
+            data-tooltip={`Online — ${activeCount} active session${activeCount !== 1 ? "s" : ""}`}
+          >
             <Wifi size={10} />
             <span>{activeCount}</span>
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-[10px] text-warn pointer-events-none">
+          <span
+            className="flex items-center gap-1 text-[10px] text-warn"
+            data-tooltip="Offline"
+          >
             <WifiOff size={10} />
           </span>
         )}
@@ -674,8 +696,8 @@ export const ServerPanel = memo(function ServerPanel({
           server.agentVersion &&
           isAgentOutdated(server.agentVersion, EXPECTED_VERSION) && (
             <span
-              className="text-orange-500 text-[11px] font-bold pointer-events-none"
-              title={`Agent ${server.agentVersion} — expected ${EXPECTED_VERSION}`}
+              className="text-orange-500 text-[11px] font-bold"
+              data-tooltip={`Agent ${server.agentVersion} — update to ${EXPECTED_VERSION}`}
             >
               !
             </span>
@@ -687,7 +709,7 @@ export const ServerPanel = memo(function ServerPanel({
             onNewSession(server.id);
           }}
           className="btn-ghost p-1 shrink-0"
-          title="New session"
+          data-tooltip="New session"
         >
           <Plus size={13} />
         </button>
@@ -698,6 +720,7 @@ export const ServerPanel = memo(function ServerPanel({
             setExpanded(!expanded);
           }}
           className="btn-ghost p-1 shrink-0"
+          data-tooltip={expanded ? "Collapse" : "Expand"}
         >
           <motion.div
             animate={{ rotate: expanded ? 180 : 0 }}

@@ -249,6 +249,75 @@ a, button, [role="button"], input[type="submit"], select, summary {
   animation: shimmer 2s ease-in-out infinite;
 }
 
+@keyframes pulse-done {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse-done {
+  animation: pulse-done 1.5s ease-in-out infinite;
+}
+
+/* ─── Tooltip ─── */
+
+.tooltip-popup {
+  position: fixed;
+  z-index: 999999;
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tooltip-top {
+  transform: translateX(-50%) translateY(-100%) translateY(-6px);
+  animation: tt-top 0.12s ease-out;
+}
+
+.tooltip-bottom {
+  transform: translateX(-50%) translateY(6px);
+  animation: tt-bottom 0.12s ease-out;
+}
+
+.tooltip-right {
+  transform: translateY(-50%) translateX(6px);
+  animation: tt-right 0.12s ease-out;
+}
+
+.tooltip-left {
+  transform: translateX(-100%) translateY(-50%) translateX(-6px);
+  animation: tt-left 0.12s ease-out;
+}
+
+@keyframes tt-top {
+  from { opacity: 0; transform: translateX(-50%) translateY(-100%) translateY(-2px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(-100%) translateY(-6px); }
+}
+
+@keyframes tt-bottom {
+  from { opacity: 0; transform: translateX(-50%) translateY(2px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(6px); }
+}
+
+@keyframes tt-right {
+  from { opacity: 0; transform: translateY(-50%) translateX(2px); }
+  to   { opacity: 1; transform: translateY(-50%) translateX(6px); }
+}
+
+@keyframes tt-left {
+  from { opacity: 0; transform: translateX(-100%) translateY(-50%) translateX(-2px); }
+  to   { opacity: 1; transform: translateX(-100%) translateY(-50%) translateX(-6px); }
+}
+
 /* Make xterm viewport touch-scrollable, block pull-to-refresh propagation */
 .xterm-viewport {
   -webkit-overflow-scrolling: touch;
