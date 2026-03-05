@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download, BarChart3, Cpu, FolderOpen, Server, Zap, Volume2, VolumeX, Bell, BellOff } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download, BarChart3, Cpu, FolderOpen, Server, Zap, Volume2, VolumeX, Bell, BellOff, Columns3 } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
 import { EXPECTED_VERSION, isAgentOutdated } from "@/lib/format";
 import { formatCost, formatTokens } from "@/lib/pricing";
@@ -341,6 +341,18 @@ export default function SettingsPage() {
   const [updatingServer, setUpdatingServer] = useState<string | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const { soundEnabled, browserEnabled, permission, toggleSound, toggleBrowser, requestPermission } = useNotificationPrefs();
+  const [workspaceEnabled, setWorkspaceEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("workspace-enabled") === "true";
+  });
+
+  const toggleWorkspace = useCallback(() => {
+    setWorkspaceEnabled((v) => {
+      const next = !v;
+      localStorage.setItem("workspace-enabled", String(next));
+      return next;
+    });
+  }, []);
 
   const handleUpdate = async (serverId: string) => {
     setUpdatingServer(serverId);
@@ -598,6 +610,33 @@ export default function SettingsPage() {
                   <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${browserEnabled ? "left-[21px]" : "left-[3px]"}`} />
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Experimental */}
+        <div className="mb-6">
+          <span className="text-[15px] font-semibold text-text-secondary block mb-4">Experimental</span>
+          <div className="rounded-xl border border-surface-2 bg-surface-1/60 p-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Columns3 size={16} className={workspaceEnabled ? "text-accent" : "text-text-faint"} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] text-text-primary">Multi-terminal workspace</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-accent/15 text-accent">
+                      beta
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-text-faint">Open multiple terminals side-by-side in a grid layout instead of separate pages</div>
+                </div>
+              </div>
+              <button
+                onClick={toggleWorkspace}
+                className={`relative w-10 h-[22px] rounded-full transition-colors ${workspaceEnabled ? "bg-accent" : "bg-surface-3"}`}
+              >
+                <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${workspaceEnabled ? "left-[21px]" : "left-[3px]"}`} />
+              </button>
             </div>
           </div>
         </div>

@@ -46,7 +46,7 @@ export function MobileServerList({
             >
               <Plus size={13} /> New
             </button>
-            <Link href="/settings" className="btn-ghost p-2">
+            <Link href="/settings" className="btn-ghost p-2" data-tooltip="Settings">
               <Settings size={16} />
             </Link>
           </div>
@@ -81,12 +81,18 @@ export function MobileServerList({
                 )}
 
                 {server.online ? (
-                  <span className="flex items-center gap-1 text-[10px] text-ok">
+                  <span
+                    className="flex items-center gap-1 text-[10px] text-ok"
+                    data-tooltip={`Online — ${activeCount} active session${activeCount !== 1 ? "s" : ""}`}
+                  >
                     <Wifi size={10} />
                     <span>{activeCount}</span>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-[10px] text-warn">
+                  <span
+                    className="flex items-center gap-1 text-[10px] text-warn"
+                    data-tooltip="Offline"
+                  >
                     <WifiOff size={10} />
                   </span>
                 )}
@@ -94,7 +100,7 @@ export function MobileServerList({
                 <button
                   onClick={() => onNewSession(server.id)}
                   className="btn-ghost p-1 shrink-0"
-                  title="New session"
+                  data-tooltip="New session"
                 >
                   <Plus size={13} />
                 </button>

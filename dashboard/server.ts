@@ -92,7 +92,7 @@ app.prepare().then(() => {
   const wss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", async (request, socket, head) => {
-    const { pathname } = parse(request.url!, true);
+    const { pathname, query } = parse(request.url!, true);
 
     if (pathname === "/ws") {
       const userId = await getUserId(request);
@@ -102,8 +102,10 @@ app.prepare().then(() => {
         return;
       }
 
-      // Attach userId to request for use in connection handler
-      (request as IncomingMessage & { userId: string }).userId = userId;
+      // Attach userId and terminal_only flag to request
+      const augmented = request as IncomingMessage & { userId: string; terminalOnly: boolean };
+      augmented.userId = userId;
+      augmented.terminalOnly = query.terminal_only === "1";
 
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit("connection", ws, request);
@@ -113,7 +115,9 @@ app.prepare().then(() => {
   });
 
   wss.on("connection", (ws, request) => {
-    const userId = (request as IncomingMessage & { userId: string }).userId;
+    const augmented = request as IncomingMessage & { userId: string; terminalOnly: boolean };
+    const userId = augmented.userId;
+    const terminalOnlyMode = augmented.terminalOnly;
 
     let terminalProxy: {
       sendInput: (data: string) => void;
@@ -140,6 +144,7 @@ app.prepare().then(() => {
           break;
 
         case "create_session":
+          if (terminalOnlyMode) break;
           if (msg.serverId && msg.workdir) {
             agentManager.createSession(
               userId,
@@ -152,6 +157,7 @@ app.prepare().then(() => {
           break;
 
         case "kill_session":
+          if (terminalOnlyMode) break;
           console.log(`[ws] kill_session: serverId=${msg.serverId} sessionId=${msg.sessionId}`);
           if (msg.serverId && msg.sessionId) {
             agentManager.killSession(userId, msg.serverId, msg.sessionId);
@@ -240,10 +246,12 @@ app.prepare().then(() => {
         terminalProxy.close();
         terminalProxy = null;
       }
-      agentManager.trackUserDisconnect(userId);
+      if (!terminalOnlyMode) {
+        agentManager.trackUserDisconnect(userId);
+      }
     });
 
-    // Async init — load servers, set up subscriptions
+    // Async init
     (async () => {
       const dbServers = await prisma.server.findMany({ where: { userId } });
       const serverConfigs = dbServers.map((s) => ({
@@ -255,26 +263,29 @@ app.prepare().then(() => {
       }));
 
       agentManager.ensureUserConnections(userId, serverConfigs);
-      agentManager.trackUserConnect(userId);
 
-      // Send initial state
-      const servers = agentManager.getServersForUser(userId);
-      ws.send(JSON.stringify({ type: "state_update", servers }));
+      if (!terminalOnlyMode) {
+        agentManager.trackUserConnect(userId);
 
-      // Subscribe to state updates
-      unsubscribe = agentManager.onUserStateChange(userId, (serverList) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "state_update", servers: serverList }));
-        }
-      });
+        // Send initial state
+        const servers = agentManager.getServersForUser(userId);
+        ws.send(JSON.stringify({ type: "state_update", servers }));
 
-      // Catch-up: re-send state after connections have had time to establish
-      setTimeout(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          const updated = agentManager.getServersForUser(userId);
-          ws.send(JSON.stringify({ type: "state_update", servers: updated }));
-        }
-      }, 3000);
+        // Subscribe to state updates
+        unsubscribe = agentManager.onUserStateChange(userId, (serverList) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "state_update", servers: serverList }));
+          }
+        });
+
+        // Catch-up: re-send state after connections have had time to establish
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const updated = agentManager.getServersForUser(userId);
+            ws.send(JSON.stringify({ type: "state_update", servers: updated }));
+          }
+        }, 3000);
+      }
 
       // Now process any messages that arrived during init
       ready = true;

@@ -295,7 +295,13 @@ export const ServerPanel = memo(function ServerPanel({
   onReportRect: (serverId: string, rect: PanelRect) => void;
   zIndex: number;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const raw = localStorage.getItem("panel-collapsed");
+      return raw ? !JSON.parse(raw).includes(server.id) : true;
+    } catch { return true; }
+  });
   const [isDragging, setIsDragging] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -697,7 +703,17 @@ export const ServerPanel = memo(function ServerPanel({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setExpanded(!expanded);
+            setExpanded((prev) => {
+              const next = !prev;
+              try {
+                const raw = localStorage.getItem("panel-collapsed");
+                const arr: string[] = raw ? JSON.parse(raw) : [];
+                const set = new Set(arr);
+                if (next) set.delete(server.id); else set.add(server.id);
+                localStorage.setItem("panel-collapsed", JSON.stringify([...set]));
+              } catch { /* ignore */ }
+              return next;
+            });
           }}
           className="btn-ghost p-1 shrink-0"
           data-tooltip={expanded ? "Collapse" : "Expand"}

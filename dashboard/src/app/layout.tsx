@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { CommandPaletteProvider } from "@/components/CommandPalette";
+import { TooltipProvider } from "@/components/Tooltip";
 import { SessionStateProvider } from "@/hooks/useSessionState";
 import "./globals.css";
 
@@ -39,6 +40,7 @@ export default function RootLayout({
       >
         <SessionStateProvider>
           <CommandPaletteProvider>{children}</CommandPaletteProvider>
+          <TooltipProvider />
         </SessionStateProvider>
       </body>
     </html>

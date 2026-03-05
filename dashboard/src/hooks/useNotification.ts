@@ -56,12 +56,20 @@ export function useNotificationPrefs() {
   return { soundEnabled, browserEnabled, permission, toggleSound, toggleBrowser, requestPermission };
 }
 
-export function useNotification(servers: ServerStatus[]) {
+export function useNotification(
+  servers: ServerStatus[],
+  onOpenPane?: (serverId: string, sessionId: string) => void,
+) {
   const prevStatesRef = useRef<Map<string, SessionState>>(new Map());
   const { playDone, playAlert } = useNotificationSound();
   const router = useRouter();
   const soundEnabled = useRef(readPref(LS_SOUND, true));
   const browserEnabled = useRef(readPref(LS_BROWSER, true));
+  const onOpenPaneRef = useRef(onOpenPane);
+
+  useEffect(() => {
+    onOpenPaneRef.current = onOpenPane;
+  });
 
   // Keep refs in sync with localStorage (poll-free via storage event)
   useEffect(() => {
@@ -155,7 +163,11 @@ export function useNotification(servers: ServerStatus[]) {
       });
       n.onclick = () => {
         window.focus();
-        router.push(`/server/${serverId}/session/${sessionId}`);
+        if (onOpenPaneRef.current) {
+          onOpenPaneRef.current(serverId, sessionId);
+        } else {
+          router.push(`/server/${serverId}/session/${sessionId}`);
+        }
         n.close();
       };
     }
@@ -168,7 +180,11 @@ export function useNotification(servers: ServerStatus[]) {
       });
       n.onclick = () => {
         window.focus();
-        router.push(`/server/${serverId}/session/${sessionId}`);
+        if (onOpenPaneRef.current) {
+          onOpenPaneRef.current(serverId, sessionId);
+        } else {
+          router.push(`/server/${serverId}/session/${sessionId}`);
+        }
         n.close();
       };
     }

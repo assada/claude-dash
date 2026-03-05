@@ -32,6 +32,7 @@ func init() {
 		regexp.MustCompile(`(?i)rate.?limit|exceeded`),
 		regexp.MustCompile(`(?i)permission.*denied`),
 		regexp.MustCompile(`(?i)do you want to`),
+		regexp.MustCompile(`Enter to select`),
 	}
 
 	workingPatterns = []*regexp.Regexp{

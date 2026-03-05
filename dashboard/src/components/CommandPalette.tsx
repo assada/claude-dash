@@ -32,6 +32,7 @@ interface PageActions {
   onNewSession?: (serverId?: string) => void;
   onArrange?: () => void;
   onToggleMetrics?: () => boolean | void;
+  onOpenTerminal?: (serverId: string, sessionId: string) => void;
 }
 
 const CommandPaletteCtx = createContext<{
@@ -156,7 +157,9 @@ function PaletteUI({
             </span>
           ),
           action: () =>
-            router.push(`/server/${server.id}/session/${session.id}`),
+            pageActions.onOpenTerminal
+              ? pageActions.onOpenTerminal(server.id, session.id)
+              : router.push(`/server/${server.id}/session/${session.id}`),
         });
       }
     }
