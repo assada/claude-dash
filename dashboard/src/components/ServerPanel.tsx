@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, memo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { motion } from "framer-motion";
 import {
   GripVertical,
@@ -18,7 +18,7 @@ import { StatusIndicator } from "./StatusIndicator";
 import type { ServerStatus, ServerMetrics, SessionInfo, SessionState } from "@/lib/types";
 import type { PanelPosition } from "@/hooks/usePanelPositions";
 import type { PanelRect } from "./DotGridCanvas";
-import { EXPECTED_VERSION, isAgentOutdated, timeSince, shortName } from "@/lib/format";
+import { EXPECTED_VERSION, isAgentOutdated, timeSince, shortName, stateLabel } from "@/lib/format";
 import { formatCost } from "@/lib/pricing";
 
 // Physics constants — matching robot-components exactly
@@ -53,27 +53,18 @@ function stateIcon(state: SessionState) {
   }
 }
 
-function stateLabel(state: SessionState): string {
-  switch (state) {
-    case "idle": return "Idle";
-    case "waiting": return "Done";
-    case "working": return "Working";
-    case "needs_attention": return "Needs You";
-    case "starting": return "Starting";
-    case "dead": return "Exited";
-    default: return state;
-  }
-}
 
-export function SessionRow({
+export const SessionRow = memo(function SessionRow({
   session,
-  onOpen,
-  onKill,
+  serverId,
+  onOpenTerminal,
+  onKillSession,
   cost,
 }: {
   session: SessionInfo;
-  onOpen: () => void;
-  onKill: () => void;
+  serverId: string;
+  onOpenTerminal: (serverId: string, sessionId: string) => void;
+  onKillSession: (serverId: string, sessionId: string) => void;
   cost?: number;
 }) {
   const isAttention = session.state === "needs_attention";
@@ -82,7 +73,7 @@ export function SessionRow({
 
   return (
     <div
-      onClick={onOpen}
+      onClick={() => onOpenTerminal(serverId, session.id)}
       className={`group relative flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors rounded-[5px] ${
         isAttention
           ? "bg-red-950/30 hover:bg-red-950/50"
@@ -132,7 +123,7 @@ export function SessionRow({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (confirm("Kill this session?")) onKill();
+            if (confirm("Kill this session?")) onKillSession(serverId, session.id);
           }}
           className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 max-md:opacity-60 group-hover:opacity-100 transition-opacity btn-danger p-1"
           data-tooltip="Kill"
@@ -142,7 +133,7 @@ export function SessionRow({
       )}
     </div>
   );
-}
+});
 
 function formatUptime(secs: number): string {
   const days = Math.floor(secs / 86400);
@@ -205,9 +196,10 @@ function MetricsBar({ serverId, metrics }: { serverId: string; metrics: ServerMe
 
   const snapshotKey = `${cpuPct}-${memPct}-${metrics.uptimeSecs}`;
 
-  // Read or init from cache
-  const cached = metricsCache.get(serverId);
-  if (!cached || cached.key !== snapshotKey) {
+  // Update global cache via useMemo to avoid side-effects during render
+  const history = useMemo(() => {
+    const cached = metricsCache.get(serverId);
+    if (cached && cached.key === snapshotKey) return cached;
     const prev = cached || { cpu: [], mem: [], disk: [], key: "" };
     const next: MetricsHistory = {
       cpu: [...prev.cpu, cpuPct].slice(-GRAPH_BARS),
@@ -216,9 +208,8 @@ function MetricsBar({ serverId, metrics }: { serverId: string; metrics: ServerMe
       key: snapshotKey,
     };
     metricsCache.set(serverId, next);
-  }
-
-  const history = metricsCache.get(serverId)!;
+    return next;
+  }, [serverId, snapshotKey, cpuPct, memPct, diskPct]);
 
   return (
     <div className="px-4 py-2 border-t border-border-subtle grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -314,12 +305,14 @@ export const ServerPanel = memo(function ServerPanel({
   const isAnimatingRef = useRef(false);
   const justBouncedRef = useRef({ x: false, y: false });
 
-  const attentionCount = server.sessions.filter(
-    (s) => s.state === "needs_attention"
-  ).length;
-  const activeCount = server.sessions.filter(
-    (s) => s.state !== "dead"
-  ).length;
+  const attentionCount = useMemo(
+    () => server.sessions.filter((s) => s.state === "needs_attention").length,
+    [server.sessions]
+  );
+  const activeCount = useMemo(
+    () => server.sessions.filter((s) => s.state !== "dead").length,
+    [server.sessions]
+  );
 
   useEffect(() => {
     const el = contentRef.current;
@@ -751,8 +744,9 @@ export const ServerPanel = memo(function ServerPanel({
                   <SessionRow
                     key={session.id}
                     session={session}
-                    onOpen={() => onOpenTerminal(server.id, session.id)}
-                    onKill={() => onKillSession(server.id, session.id)}
+                    serverId={server.id}
+                    onOpenTerminal={onOpenTerminal}
+                    onKillSession={onKillSession}
                     cost={sessionCost}
                   />
                 );

@@ -116,12 +116,9 @@ export function MobileServerList({
                         <SessionRow
                           key={session.id}
                           session={session}
-                          onOpen={() =>
-                            onOpenTerminal(server.id, session.id)
-                          }
-                          onKill={() =>
-                            onKillSession(server.id, session.id)
-                          }
+                          serverId={server.id}
+                          onOpenTerminal={onOpenTerminal}
+                          onKillSession={onKillSession}
                           cost={sessionCost}
                         />
                       );

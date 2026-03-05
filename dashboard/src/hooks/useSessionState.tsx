@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from "react";
 import type { ServerStatus, SessionState } from "@/lib/types";
+import { wsUrl } from "@/lib/format";
 
 type SessionStateValue = ReturnType<typeof useSessionState>;
 
@@ -95,8 +96,6 @@ export function useSessionState() {
             s.metrics?.diskUsed === f.metrics?.diskUsed &&
             s.metrics?.uptimeSecs === f.metrics?.uptimeSecs &&
             s.usage?.totalCost === f.usage?.totalCost &&
-            s.usage?.totalTokens === f.usage?.totalTokens &&
-            s.usage?.totalCost === f.usage?.totalCost &&
             s.usage?.totalTokens === f.usage?.totalTokens
           );
         })
@@ -111,8 +110,7 @@ export function useSessionState() {
 
   useEffect(() => {
     const doConnect = () => {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      const ws = new WebSocket(wsUrl());
       wsRef.current = ws;
 
       ws.onopen = () => {

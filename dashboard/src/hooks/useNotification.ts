@@ -155,38 +155,23 @@ export function useNotification(
       typeof Notification !== "undefined" &&
       Notification.permission === "granted";
 
-    if (doneSession && canNotify) {
-      const { sessionName, serverName, serverId, sessionId } = doneSession;
-      const n = new Notification("Session done", {
-        body: `${sessionName} @ ${serverName}`,
+    const showNotification = (title: string, info: { sessionName: string; serverName: string; serverId: string; sessionId: string }) => {
+      const n = new Notification(title, {
+        body: `${info.sessionName} @ ${info.serverName}`,
         icon: "/favicon.ico",
       });
       n.onclick = () => {
         window.focus();
         if (onOpenPaneRef.current) {
-          onOpenPaneRef.current(serverId, sessionId);
+          onOpenPaneRef.current(info.serverId, info.sessionId);
         } else {
-          router.push(`/server/${serverId}/session/${sessionId}`);
+          router.push(`/server/${info.serverId}/session/${info.sessionId}`);
         }
         n.close();
       };
-    }
+    };
 
-    if (alertSession && canNotify) {
-      const { sessionName, serverName, serverId, sessionId } = alertSession;
-      const n = new Notification("Session needs attention", {
-        body: `${sessionName} @ ${serverName}`,
-        icon: "/favicon.ico",
-      });
-      n.onclick = () => {
-        window.focus();
-        if (onOpenPaneRef.current) {
-          onOpenPaneRef.current(serverId, sessionId);
-        } else {
-          router.push(`/server/${serverId}/session/${sessionId}`);
-        }
-        n.close();
-      };
-    }
+    if (doneSession && canNotify) showNotification("Session done", doneSession);
+    if (alertSession && canNotify) showNotification("Session needs attention", alertSession);
   }, [servers, playDone, playAlert, router]);
 }

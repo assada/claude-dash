@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Settings, Terminal, LayoutGrid, Columns3 } from "lucide-react";
@@ -26,14 +26,64 @@ export default function Home() {
   const {
     servers,
     createSession,
-    killSession,
+    killSession: rawKillSession,
   } = useSessionStateContext();
   const [showNewSession, setShowNewSession] = useState(false);
   const [defaultNewServerId, setDefaultNewServerId] = useState<string>();
   const router = useRouter();
   const isMobile = useIsMobile();
   const workspace = useWorkspace();
-  const workspaceEnabled = useMemo(() => isWorkspaceEnabled(), []);
+  const [workspaceEnabled, setWorkspaceEnabled] = useState(() => isWorkspaceEnabled());
+
+  // React to workspace toggle from settings page (cross-tab + same-tab on focus)
+  useEffect(() => {
+    const sync = () => {
+      const enabled = isWorkspaceEnabled();
+      setWorkspaceEnabled((prev) => {
+        if (prev === enabled) return prev;
+        if (!enabled) workspace.purge();
+        return enabled;
+      });
+    };
+    // Cross-tab: storage event
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "workspace-enabled") sync();
+    };
+    // Same-tab: check on focus return (e.g. navigated back from settings)
+    const onFocus = () => sync();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    // Also check on mount (user may have toggled in settings then navigated back)
+    sync();
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [workspace]);
+
+  // Kill session + auto-close its workspace pane
+  const killSession = useCallback((serverId: string, sessionId: string) => {
+    rawKillSession(serverId, sessionId);
+    workspace.closePaneBySession(serverId, sessionId);
+  }, [rawKillSession, workspace]);
+
+  // Auto-close workspace panes for dead/removed sessions
+  useEffect(() => {
+    if (!workspaceEnabled || workspace.panes.length === 0) return;
+    const alive = new Set<string>();
+    for (const server of servers) {
+      for (const session of server.sessions) {
+        if (session.state !== "dead") {
+          alive.add(`${server.id}:${session.id}`);
+        }
+      }
+    }
+    for (const pane of workspace.panes) {
+      if (!alive.has(pane.id)) {
+        workspace.closePaneBySession(pane.serverId, pane.sessionId);
+      }
+    }
+  }, [servers, workspaceEnabled, workspace]);
 
   const [metricsVisible, setMetricsVisible] = useState(() => {
     if (typeof window === "undefined") return true;

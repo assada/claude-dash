@@ -109,6 +109,43 @@ export function DotGridCanvas({
         }
       }
 
+      // No panels — spring dots back to base, then idle at low framerate
+      if (panels.length === 0) {
+        let settled = true;
+        for (const [key, dot] of dotsRef.current) {
+          const commaIdx = key.indexOf(",");
+          const baseX = parseInt(key.substring(0, commaIdx));
+          const baseY = parseInt(key.substring(commaIdx + 1));
+
+          const forceX = (baseX - dot.x) * SPRING_STIFFNESS;
+          const forceY = (baseY - dot.y) * SPRING_STIFFNESS;
+          dot.vx = (dot.vx + forceX) * DAMPING;
+          dot.vy = (dot.vy + forceY) * DAMPING;
+          dot.x += dot.vx;
+          dot.y += dot.vy;
+          dot.size += (1 - dot.size) * 0.15;
+
+          if (Math.abs(dot.vx) > 0.01 || Math.abs(dot.vy) > 0.01 || Math.abs(dot.x - baseX) > 0.1 || Math.abs(dot.y - baseY) > 0.1) {
+            settled = false;
+          }
+
+          if (dot.x < -20 || dot.x > w + 20 || dot.y < -20 || dot.y > h + 20) continue;
+
+          ctx.beginPath();
+          ctx.arc(dot.x, dot.y, Math.max(0.5, dot.size), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(130,130,130,${BASE_OPACITY})`;
+          ctx.fill();
+        }
+
+        // When settled, poll at ~2fps to detect new panels; otherwise animate normally
+        if (settled) {
+          setTimeout(() => { if (running) rafRef.current = requestAnimationFrame(draw); }, 500);
+        } else {
+          rafRef.current = requestAnimationFrame(draw);
+        }
+        return;
+      }
+
       for (const [key, dot] of dotsRef.current) {
         // Parse base grid position from key
         const commaIdx = key.indexOf(",");

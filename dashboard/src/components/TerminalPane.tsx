@@ -6,6 +6,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
 import type { SessionState } from "@/lib/types";
+import { wsUrl } from "@/lib/format";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 function encodeBase64(str: string): string {
   const encoder = new TextEncoder();
@@ -49,6 +51,7 @@ export function useTerminalPane({
   const [connected, setConnected] = useState(false);
   const attachedRef = useRef(false);
   const initialStateRef = useRef(sessionState);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const term = termRef.current;
@@ -67,7 +70,7 @@ export function useTerminalPane({
     let term: Terminal | null = null;
     let fitAddon: FitAddon | null = null;
     let disposed = false;
-    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    const mobile = isMobile;
     const MOBILE_MIN_COLS = 80;
 
     const handleResize = () => {
@@ -211,11 +214,7 @@ export function useTerminalPane({
         el.addEventListener("touchmove", onTouchMove, { passive: false });
       }
 
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = terminalOnly
-        ? `${protocol}//${window.location.host}/ws?terminal_only=1`
-        : `${protocol}//${window.location.host}/ws`;
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl(terminalOnly ? "/ws?terminal_only=1" : "/ws"));
       wsRef.current = ws;
 
       const t = term;
@@ -267,7 +266,7 @@ export function useTerminalPane({
       termRef.current = null;
       wsRef.current = null;
     };
-  }, [serverId, sessionId, terminalOnly]);
+  }, [serverId, sessionId, terminalOnly, isMobile]);
 
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current;

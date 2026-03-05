@@ -19,6 +19,44 @@ export function timeSince(ts: number): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+import type { SessionState } from "@/lib/types";
+
+export function readLS<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeLS(key: string, value: unknown): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch { /* quota exceeded or private mode */ }
+}
+
+export function wsUrl(path = "/ws"): string {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}${path}`;
+}
+
+export const STATE_LABELS: Record<SessionState, string> = {
+  idle: "Idle",
+  waiting: "Done",
+  working: "Working",
+  needs_attention: "Needs You",
+  starting: "Starting",
+  dead: "Exited",
+};
+
+export function stateLabel(state: SessionState): string {
+  return STATE_LABELS[state] ?? state;
+}
+
 export function shortName(name: string, workdir?: string): string {
   const match = name.match(/^cc-\d+-(.+)$/);
   const label = match ? match[1] : name;

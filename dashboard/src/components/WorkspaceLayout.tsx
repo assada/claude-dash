@@ -109,11 +109,12 @@ export function WorkspaceLayout({
     [panes]
   );
 
-  // Resolve session info for each pane (as a Map for render prop lookup)
+  // Resolve session info for each pane using Maps for O(1) lookup
   const paneInfoMap = useMemo(() => {
+    const serverMap = new Map(servers.map((s) => [s.id, s]));
     const map = new Map<string, { sessionName: string; workdir?: string; serverName: string; sessionState: "idle" | "working" | "waiting" | "needs_attention" | "starting" | "dead" }>();
     for (const pane of panes) {
-      const server = servers.find((s) => s.id === pane.serverId);
+      const server = serverMap.get(pane.serverId);
       const session = server?.sessions.find((s) => s.id === pane.sessionId);
       map.set(pane.id, {
         sessionName: session?.name || pane.sessionId,

@@ -142,7 +142,8 @@ export function usePanelPositions(serverIds: string[]) {
       ? arrangeNew(missing, kept, width)
       : arrange(serverIds, width);
     const merged = { ...kept, ...newPositions };
-    save(merged);
+    // Defer localStorage write to avoid side-effect in render
+    queueMicrotask(() => save(merged));
     return merged;
   }, [positions, serverIds]);
 

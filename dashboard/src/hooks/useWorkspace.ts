@@ -164,6 +164,21 @@ export function useWorkspace() {
     });
   }, []);
 
+  // Purge all panes + localStorage (for when workspace mode is disabled)
+  const purge = useCallback(() => {
+    savePanes([]);
+    setState((prev) => {
+      if (prev.panes.length === 0 && !prev.visible) return prev;
+      return { ...prev, panes: [], focusedPaneId: null, visible: false };
+    });
+  }, []);
+
+  // Close panes for a specific killed session
+  const closePaneBySession = useCallback((serverId: string, sessionId: string) => {
+    const id = `${serverId}:${sessionId}`;
+    closePane(id);
+  }, [closePane]);
+
   const hasPanes = state.panes.length > 0;
 
   return useMemo(() => ({
@@ -174,13 +189,15 @@ export function useWorkspace() {
     hasPanes,
     openPane,
     closePane,
+    closePaneBySession,
     focusPane,
     setLayout,
     closeAll,
+    purge,
     hideWorkspace,
     showWorkspace,
     reorderPanes,
     focusNext,
     focusPrev,
-  }), [state, hasPanes, openPane, closePane, focusPane, setLayout, closeAll, hideWorkspace, showWorkspace, reorderPanes, focusNext, focusPrev]);
+  }), [state, hasPanes, openPane, closePane, closePaneBySession, focusPane, setLayout, closeAll, purge, hideWorkspace, showWorkspace, reorderPanes, focusNext, focusPrev]);
 }

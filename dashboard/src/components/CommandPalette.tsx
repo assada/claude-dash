@@ -10,7 +10,7 @@ import {
   useCallback,
 } from "react";
 import { useRouter } from "next/navigation";
-import { shortName } from "@/lib/format";
+import { shortName, STATE_LABELS } from "@/lib/format";
 import {
   Terminal,
   Plus,
@@ -22,7 +22,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { StatusIndicator } from "./StatusIndicator";
 import { useSessionStateContext } from "@/hooks/useSessionState";
-import type { SessionState } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
 /*  Context — pages register overrides for dashboard-specific actions  */
@@ -111,14 +110,7 @@ interface CommandItem {
   action: () => void;
 }
 
-const STATE_LABEL: Record<SessionState, string> = {
-  idle: "Idle",
-  waiting: "Done",
-  working: "Working",
-  needs_attention: "Needs You",
-  starting: "Starting",
-  dead: "Exited",
-};
+const STATE_LABEL = STATE_LABELS;
 
 function PaletteUI({
   onClose,

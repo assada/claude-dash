@@ -3,20 +3,8 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Maximize2 } from "lucide-react";
 import { StatusIndicator } from "./StatusIndicator";
-import { shortName } from "@/lib/format";
+import { shortName, stateLabel } from "@/lib/format";
 import type { ServerStatus } from "@/lib/types";
-
-function stateLabel(state: string): string {
-  switch (state) {
-    case "idle": return "Idle";
-    case "waiting": return "Done";
-    case "working": return "Working";
-    case "needs_attention": return "Needs You";
-    case "starting": return "Starting";
-    case "dead": return "Exited";
-    default: return state;
-  }
-}
 
 export function WorkspaceSidebar({
   servers,
