@@ -11,7 +11,19 @@ export interface ServerConfig {
   token: string;
 }
 
+export type UpdateType = "sessions" | "metrics" | "server_info" | "usage" | "connectivity";
 type StateCallback = (servers: ServerStatus[]) => void;
+type TargetedCallback = (update: TargetedUpdate) => void;
+
+export interface TargetedUpdate {
+  type: UpdateType;
+  serverId: string;
+  sessions?: SessionInfo[];
+  metrics?: ServerMetrics;
+  serverInfo?: { hostname?: string; os?: string; agentVersion?: string; dirs?: string[] };
+  usage?: ServerUsage;
+  online?: boolean;
+}
 
 class AgentConnection {
   private ws: WebSocket | null = null;
@@ -31,7 +43,7 @@ class AgentConnection {
   constructor(
     public config: ServerConfig,
     private userId: string,
-    private onUpdate: () => void
+    private onEvent: (type: UpdateType) => void
   ) {}
 
   private get wsUrl(): string {
@@ -60,7 +72,7 @@ class AgentConnection {
       this.loadUsageFromDB().catch((e) =>
         console.warn(`[agent] Failed to load usage from DB:`, (e as Error).message)
       );
-      this.onUpdate();
+      this.onEvent("connectivity");
     });
 
     this.ws.on("message", (data) => {
@@ -82,7 +94,7 @@ class AgentConnection {
         state: "dead" as const,
         state_changed_at: Date.now(),
       }));
-      this.onUpdate();
+      this.onEvent("connectivity");
       this.scheduleReconnect();
     });
 
@@ -94,7 +106,7 @@ class AgentConnection {
         state: "dead" as const,
         state_changed_at: Date.now(),
       }));
-      this.onUpdate();
+      this.onEvent("connectivity");
       this.scheduleReconnect();
     });
   }
@@ -108,7 +120,7 @@ class AgentConnection {
             serverId: this.config.id,
             serverName: this.config.name,
           }));
-          this.onUpdate();
+          this.onEvent("sessions");
         }
         break;
 
@@ -135,16 +147,22 @@ class AgentConnection {
           });
           if (result.count > 0) {
             await this.loadUsageFromDB();
-            this.onUpdate();
+            this.onEvent("usage");
           }
         }
         break;
 
-      case "machine_info":
+      case "machine_info": {
+        const infoChanged =
+          this.hostname !== msg.hostname ||
+          this.os !== msg.os ||
+          this.agentVersion !== msg.version ||
+          JSON.stringify(this.dirs) !== JSON.stringify(msg.dirs);
         this.hostname = msg.hostname;
         this.os = msg.os;
         this.agentVersion = msg.version;
         this.dirs = msg.dirs;
+
         if (msg.mem_total && msg.mem_total > 0) {
           this.metrics = {
             cpuPercent: msg.cpu_percent ?? 0,
@@ -155,9 +173,13 @@ class AgentConnection {
             uptimeSecs: msg.uptime_secs ?? 0,
             loadAvg: msg.load_avg ?? 0,
           };
+          this.onEvent("metrics");
         }
-        this.onUpdate();
+        if (infoChanged) {
+          this.onEvent("server_info");
+        }
         break;
+      }
     }
   }
 
@@ -359,8 +381,8 @@ class AgentManager {
       const existing = this.connections.get(key);
 
       if (!existing) {
-        const conn = new AgentConnection(server, userId, () =>
-          this.notifyUser(userId)
+        const conn = new AgentConnection(server, userId, (type) =>
+          this.notifyUserTargeted(userId, this.buildUpdate(conn, type))
         );
         this.connections.set(key, conn);
         conn.connect();
@@ -371,8 +393,8 @@ class AgentManager {
         existing.config.name !== server.name
       ) {
         existing.disconnect();
-        const conn = new AgentConnection(server, userId, () =>
-          this.notifyUser(userId)
+        const conn = new AgentConnection(server, userId, (type) =>
+          this.notifyUserTargeted(userId, this.buildUpdate(conn, type))
         );
         this.connections.set(key, conn);
         conn.connect();
@@ -397,6 +419,7 @@ class AgentManager {
       }
     }
     this.userCallbacks.delete(userId);
+    this.targetedCallbacks.delete(userId);
   }
 
   /**
@@ -447,7 +470,45 @@ class AgentManager {
     };
   }
 
-  private notifyUser(userId: string) {
+  onUserTargetedUpdate(userId: string, cb: TargetedCallback): () => void {
+    const cbs = this.targetedCallbacks.get(userId) || [];
+    cbs.push(cb);
+    this.targetedCallbacks.set(userId, cbs);
+    return () => {
+      const arr = this.targetedCallbacks.get(userId);
+      if (arr) {
+        this.targetedCallbacks.set(userId, arr.filter((c) => c !== cb));
+      }
+    };
+  }
+
+  private buildUpdate(conn: AgentConnection, type: UpdateType): TargetedUpdate {
+    const base = { type, serverId: conn.config.id };
+    switch (type) {
+      case "sessions":
+        return { ...base, sessions: conn.sessions };
+      case "metrics":
+        return { ...base, metrics: conn.metrics };
+      case "server_info":
+        return { ...base, serverInfo: { hostname: conn.hostname, os: conn.os, agentVersion: conn.agentVersion, dirs: conn.dirs } };
+      case "usage":
+        return { ...base, usage: conn.serverUsage };
+      case "connectivity":
+        return { ...base, online: conn.online, sessions: conn.sessions };
+    }
+  }
+
+  private targetedCallbacks = new Map<string, TargetedCallback[]>();
+
+  private notifyUserTargeted(userId: string, update: TargetedUpdate) {
+    const cbs = this.targetedCallbacks.get(userId) || [];
+    for (const cb of cbs) {
+      cb(update);
+    }
+  }
+
+  /** Legacy: send full state (used for initial sync only) */
+  private notifyUserFull(userId: string) {
     const servers = this.getServersForUser(userId);
     const cbs = this.userCallbacks.get(userId) || [];
     for (const cb of cbs) {
@@ -516,7 +577,7 @@ class AgentManager {
     conn.send({ type: "kill_session", session_id: sessionId });
     // Optimistically remove session from local state
     conn.sessions = conn.sessions.filter((s) => s.id !== sessionId);
-    this.notifyUser(userId);
+    this.notifyUserTargeted(userId, { type: "sessions", serverId, sessions: conn.sessions });
   }
 
   updateAgent(userId: string, serverId: string) {

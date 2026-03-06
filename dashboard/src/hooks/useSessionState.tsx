@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from "react";
-import type { ServerStatus, SessionState } from "@/lib/types";
+import type { ServerStatus, SessionState, SessionInfo, ServerMetrics, ServerUsage } from "@/lib/types";
 import { wsUrl } from "@/lib/format";
 
 type SessionStateValue = ReturnType<typeof useSessionState>;
@@ -106,6 +106,125 @@ export function useSessionState() {
     });
   }, []);
 
+  // Process a targeted update (only one server, only changed fields)
+  const applyTargetedUpdate = useCallback((msg: {
+    type: string;
+    serverId: string;
+    sessions?: SessionInfo[];
+    metrics?: ServerMetrics;
+    serverInfo?: { hostname?: string; os?: string; agentVersion?: string; dirs?: string[] };
+    usage?: ServerUsage;
+    online?: boolean;
+  }) => {
+    const prevStates = prevStatesRef.current;
+    const waitingSet = waitingSetRef.current;
+    const activeViews = activeViewsRef.current;
+    const isTabVisible = typeof document !== "undefined" && document.visibilityState === "visible";
+
+    setServers((prev) => {
+      const idx = prev.findIndex((s) => s.id === msg.serverId);
+      if (idx === -1) return prev;
+
+      const server = prev[idx];
+      let changed = false;
+      let updated = { ...server };
+
+      if (msg.type === "sessions" && msg.sessions) {
+        const newSessions = msg.sessions
+          .filter((s) => s.state !== "dead")
+          .map((s) => {
+            const key = `${msg.serverId}:${s.id}`;
+            const prevState = prevStates.get(key);
+            if (prevState === "working" && s.state === "idle") {
+              if (!(activeViews.has(key) && isTabVisible)) {
+                waitingSet.add(key);
+              }
+            }
+            if (s.state !== "idle") waitingSet.delete(key);
+            prevStates.set(key, s.state);
+            const displayState = waitingSet.has(key) ? "waiting" : s.state;
+            return { ...s, state: displayState };
+          });
+
+        // Check if sessions actually changed
+        if (
+          server.sessions.length !== newSessions.length ||
+          !server.sessions.every((ss, j) =>
+            ss.id === newSessions[j]?.id &&
+            ss.state === newSessions[j]?.state &&
+            ss.last_line === newSessions[j]?.last_line &&
+            ss.state_changed_at === newSessions[j]?.state_changed_at
+          )
+        ) {
+          updated.sessions = newSessions;
+          changed = true;
+        }
+      }
+
+      if (msg.type === "metrics" && msg.metrics) {
+        const m = msg.metrics;
+        const pm = server.metrics;
+        if (
+          !pm ||
+          pm.cpuPercent !== m.cpuPercent ||
+          pm.memUsed !== m.memUsed ||
+          pm.diskUsed !== m.diskUsed ||
+          pm.uptimeSecs !== m.uptimeSecs
+        ) {
+          updated.metrics = m;
+          changed = true;
+        }
+      }
+
+      if (msg.type === "server_info" && msg.serverInfo) {
+        const si = msg.serverInfo;
+        if (
+          server.agentVersion !== si.agentVersion ||
+          server.hostname !== si.hostname ||
+          server.os !== si.os
+        ) {
+          updated = { ...updated, ...si };
+          changed = true;
+        }
+      }
+
+      if (msg.type === "usage" && msg.usage) {
+        if (
+          server.usage?.totalCost !== msg.usage.totalCost ||
+          server.usage?.totalTokens !== msg.usage.totalTokens
+        ) {
+          updated.usage = msg.usage;
+          changed = true;
+        }
+      }
+
+      if (msg.type === "connectivity" && msg.online !== undefined) {
+        if (server.online !== msg.online) {
+          updated.online = msg.online;
+          changed = true;
+        }
+        // Also update sessions on connectivity change
+        if (msg.sessions) {
+          const newSessions = msg.sessions
+            .filter((s) => s.state !== "dead")
+            .map((s) => {
+              const key = `${msg.serverId}:${s.id}`;
+              prevStates.set(key, s.state);
+              const displayState = waitingSet.has(key) ? "waiting" : s.state;
+              return { ...s, state: displayState };
+            });
+          updated.sessions = newSessions;
+          changed = true;
+        }
+      }
+
+      if (!changed) return prev;
+      const next = [...prev];
+      next[idx] = updated;
+      return next;
+    });
+  }, []);
+
   const connectRef = useRef<() => void>(null);
 
   useEffect(() => {
@@ -122,6 +241,9 @@ export function useSessionState() {
           const msg = JSON.parse(event.data);
           if (msg.type === "state_update" && msg.servers) {
             processServers(msg.servers);
+          } else if (msg.serverId) {
+            // Targeted update: sessions, metrics, server_info, usage, connectivity
+            applyTargetedUpdate(msg);
           }
         } catch (e) {
           console.warn("[ws] Failed to parse message:", (e as Error).message);
@@ -147,7 +269,7 @@ export function useSessionState() {
       }
       wsRef.current?.close();
     };
-  }, [processServers]);
+  }, [processServers, applyTargetedUpdate]);
 
   const createSession = useCallback(
     (serverId: string, workdir: string, name: string, dangerouslySkipPermissions?: boolean) => {

@@ -267,24 +267,26 @@ app.prepare().then(() => {
       if (!terminalOnlyMode) {
         agentManager.trackUserConnect(userId);
 
-        // Send initial state
+        // Send initial full state
         const servers = agentManager.getServersForUser(userId);
         ws.send(JSON.stringify({ type: "state_update", servers }));
 
-        // Subscribe to state updates
-        unsubscribe = agentManager.onUserStateChange(userId, (serverList) => {
+        // Subscribe to targeted updates
+        const unsubTargeted = agentManager.onUserTargetedUpdate(userId, (update) => {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: "state_update", servers: serverList }));
+            ws.send(JSON.stringify(update));
           }
         });
 
-        // Catch-up: re-send state after connections have had time to establish
+        // Catch-up: re-send full state after connections have had time to establish
         setTimeout(() => {
           if (ws.readyState === WebSocket.OPEN) {
             const updated = agentManager.getServersForUser(userId);
             ws.send(JSON.stringify({ type: "state_update", servers: updated }));
           }
         }, 3000);
+
+        unsubscribe = unsubTargeted;
       }
 
       // Now process any messages that arrived during init

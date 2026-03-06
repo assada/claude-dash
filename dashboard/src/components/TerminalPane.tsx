@@ -51,9 +51,11 @@ export function useTerminalPane({
   const [connected, setConnected] = useState(false);
   const attachedRef = useRef(false);
   const initialStateRef = useRef(sessionState);
+  const isFocusedRef = useRef(isFocused);
   const isMobile = useIsMobile();
 
   useEffect(() => {
+    isFocusedRef.current = isFocused;
     const term = termRef.current;
     if (!term) return;
     if (isFocused) {
@@ -163,6 +165,7 @@ export function useTerminalPane({
       term.loadAddon(searchAddon);
 
       term.open(el);
+      if (isFocusedRef.current) term.focus();
       if (mobile) {
         const dims = fitAddon.proposeDimensions();
         if (dims) {

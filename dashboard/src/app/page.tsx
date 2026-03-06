@@ -321,14 +321,15 @@ export default function Home() {
             })
           )}
 
-        <NewSessionModal
-          open={showNewSession}
-          servers={servers}
-          defaultServerId={defaultNewServerId}
-          onClose={handleCloseNewSession}
-          onSubmit={createSession}
-        />
       </div>
+
+      <NewSessionModal
+        open={showNewSession}
+        servers={servers}
+        defaultServerId={defaultNewServerId}
+        onClose={handleCloseNewSession}
+        onSubmit={createSession}
+      />
     </>
   );
 }
