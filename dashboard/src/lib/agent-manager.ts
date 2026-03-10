@@ -48,7 +48,8 @@ class AgentConnection {
   ) {}
 
   private get wsUrl(): string {
-    return `ws://${this.config.host}:${this.config.port}/ws`;
+    // Token in URL for backward compat with old agents; new agents also accept first-message auth
+    return `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
   }
 
   connect() {
