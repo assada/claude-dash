@@ -290,6 +290,10 @@ elif [ "$OS" = "darwin" ]; then
         <string>${HOME}</string>
         <key>PATH</key>
         <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
+        <key>LC_ALL</key>
+        <string>en_US.UTF-8</string>
     </dict>
 </dict>
 </plist>
