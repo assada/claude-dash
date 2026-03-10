@@ -15,6 +15,7 @@ export function TerminalView({
   serverName,
   sessionState,
   onBack,
+  terminalOnly = false,
 }: {
   serverId: string;
   sessionId: string;
@@ -22,6 +23,7 @@ export function TerminalView({
   serverName: string;
   sessionState: SessionState;
   onBack: () => void;
+  terminalOnly?: boolean;
 }) {
   const isMobile = useIsMobile();
   const [mobileInput, setMobileInput] = useState("");
@@ -31,6 +33,7 @@ export function TerminalView({
     sessionId,
     isFocused: true,
     sessionState,
+    terminalOnly,
   });
 
   const shortName = formatShortName(sessionName);

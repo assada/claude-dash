@@ -54,7 +54,12 @@ export default function SessionPage({
   }, [servers, serverId, sessionId]);
 
   const handleBack = useCallback(() => {
-    router.push("/");
+    // Use back() to restore previous page from bfcache instead of remounting
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/");
+    }
   }, [router]);
 
   if (!resolved) {
@@ -73,6 +78,7 @@ export default function SessionPage({
       serverName={resolved.serverName}
       sessionState={resolved.sessionState}
       onBack={handleBack}
+      terminalOnly
     />
   );
 }
