@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Plus, Settings, Terminal, LayoutGrid, Columns3 } from "lucide-react";
 import { formatCost } from "@/lib/pricing";
 import { ServerPanel } from "@/components/ServerPanel";
@@ -291,9 +290,9 @@ export default function Home() {
               >
                 <Plus size={14} /> New Session
               </button>
-              <Link href="/settings" className="btn-ghost p-2" data-tooltip="Settings">
+              <button onClick={() => router.push("/settings")} className="btn-ghost p-2" data-tooltip="Settings">
                 <Settings size={16} />
-              </Link>
+              </button>
             </div>
           </div>
         </header>
