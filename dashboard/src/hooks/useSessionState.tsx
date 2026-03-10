@@ -74,6 +74,17 @@ export function useSessionState() {
       return { ...server, sessions };
     });
 
+    // Clean up stale entries from tracking maps
+    const currentKeys = new Set(
+      filtered.flatMap((s) => s.sessions.map((ss) => `${s.id}:${ss.id}`))
+    );
+    for (const key of prevStates.keys()) {
+      if (!currentKeys.has(key)) {
+        prevStates.delete(key);
+        waitingSet.delete(key);
+      }
+    }
+
     setServers((prev) => {
       if (
         prev.length === filtered.length &&

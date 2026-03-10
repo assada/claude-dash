@@ -23,7 +23,10 @@ type safeConn struct {
 func (c *safeConn) safeWrite(messageType int, data []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	return c.Conn.WriteMessage(messageType, data)
+	c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	err := c.Conn.WriteMessage(messageType, data)
+	c.Conn.SetWriteDeadline(time.Time{})
+	return err
 }
 
 // Client → Agent messages
@@ -136,7 +139,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Re-scan all usage files so new subscriber gets historical data.
 	// Dashboard deduplicates via skipDuplicates on DB insert.
-	s.usage.RescanAll()
+	go s.usage.RescanAll()
 
 	var terminal *TerminalSession
 
@@ -424,7 +427,9 @@ func (s *Server) broadcastMachineInfo() {
 	s.mu.Unlock()
 
 	for _, conn := range subs {
-		conn.safeWrite(websocket.TextMessage, data)
+		if err := conn.safeWrite(websocket.TextMessage, data); err != nil {
+			conn.Close()
+		}
 	}
 }
 
@@ -443,7 +448,9 @@ func (s *Server) broadcastUsageEntries(entries []UsageEntry) {
 	s.mu.Unlock()
 
 	for _, conn := range subs {
-		conn.safeWrite(websocket.TextMessage, data)
+		if err := conn.safeWrite(websocket.TextMessage, data); err != nil {
+			conn.Close()
+		}
 	}
 }
 
@@ -462,6 +469,8 @@ func (s *Server) broadcastSessions(sessions []*SessionInfo) {
 	}
 
 	for _, conn := range subs {
-		conn.safeWrite(websocket.TextMessage, data)
+		if err := conn.safeWrite(websocket.TextMessage, data); err != nil {
+			conn.Close()
+		}
 	}
 }

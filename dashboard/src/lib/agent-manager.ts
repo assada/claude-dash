@@ -30,6 +30,7 @@ class AgentConnection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
+  private static readonly STALE_TIMEOUT_MS = 15_000; // 3 missed 5s metric cycles
 
   public online = false;
   public hostname?: string;
@@ -68,6 +69,12 @@ class AgentConnection {
     this.ws.on("open", () => {
       this.online = true;
       this.reconnectDelay = 1000;
+      // Socket-level inactivity timeout — auto-resets on any received data
+      const socket = (this.ws as any)?._socket;
+      if (socket) {
+        socket.setTimeout(AgentConnection.STALE_TIMEOUT_MS);
+        socket.on("timeout", () => this.ws?.close());
+      }
       this.send({ type: "machine_info" });
       this.loadUsageFromDB().catch((e) =>
         console.warn(`[agent] Failed to load usage from DB:`, (e as Error).message)
@@ -238,15 +245,18 @@ class AgentConnection {
 
   private scheduleReconnect() {
     if (this.reconnectTimer) return;
+    // Add ±30% jitter to prevent thundering herd
+    const jitter = this.reconnectDelay * (0.7 + Math.random() * 0.6);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
-    }, this.reconnectDelay);
+    }, jitter);
     this.reconnectDelay = Math.min(
       this.reconnectDelay * 2,
       this.maxReconnectDelay
     );
   }
+
 
   forceReconnect() {
     if (this.reconnectTimer) {

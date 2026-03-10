@@ -128,6 +128,7 @@ app.prepare().then(() => {
 
     // Queue messages until async init completes
     const messageQueue: string[] = [];
+    const MAX_QUEUED = 100;
     let ready = false;
 
     function handleMessage(rawStr: string) {
@@ -231,7 +232,7 @@ app.prepare().then(() => {
     ws.on("message", (raw) => {
       const str = raw.toString();
       if (!ready) {
-        messageQueue.push(str);
+        if (messageQueue.length < MAX_QUEUED) messageQueue.push(str);
         return;
       }
       handleMessage(str);
