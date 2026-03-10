@@ -413,10 +413,10 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingServer),
       });
-      if (!res.ok) {
-        const err = await res.text();
-        console.error("[settings] Save failed:", res.status, err);
-        alert(`Failed to save: ${res.status}`);
+      const body = await res.text();
+      console.log("[settings] Save response:", res.status, res.url, body.slice(0, 200));
+      if (!res.ok || !body.includes('"ok"')) {
+        alert(`Save failed: ${res.status} url=${res.url} body=${body.slice(0, 100)}`);
         setSaving(false);
         return;
       }
