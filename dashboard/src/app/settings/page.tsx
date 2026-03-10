@@ -408,11 +408,18 @@ export default function SettingsPage() {
     if (!editingServer) return;
     setSaving(true);
     try {
-      await fetch("/api/servers", {
+      const res = await fetch("/api/servers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingServer),
       });
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("[settings] Save failed:", res.status, err);
+        alert(`Failed to save: ${res.status}`);
+        setSaving(false);
+        return;
+      }
       setEditingServer(null);
       setIsNew(false);
       await fetchServers();
