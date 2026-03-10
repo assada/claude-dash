@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"time"
@@ -99,23 +100,8 @@ func selfUpdate() error {
 		return fmt.Errorf("get executable path: %w", err)
 	}
 
-	// Try direct rename (same filesystem)
-	if err := os.Rename(tmpPath, execPath); err != nil {
-		// Cross-device: read+write
-		src, err2 := os.Open(tmpPath)
-		if err2 != nil {
-			return fmt.Errorf("open temp: %w", err2)
-		}
-		defer src.Close()
-		dst, err2 := os.OpenFile(execPath, os.O_WRONLY|os.O_TRUNC, 0755)
-		if err2 != nil {
-			return fmt.Errorf("open dest (may need sudo): %w", err2)
-		}
-		if _, err2 := io.Copy(dst, src); err2 != nil {
-			dst.Close()
-			return fmt.Errorf("copy binary: %w", err2)
-		}
-		dst.Close()
+	if err := replaceBinary(tmpPath, execPath); err != nil {
+		return err
 	}
 
 	return nil
@@ -177,5 +163,62 @@ func verifyChecksum(client *http.Client, release githubRelease, binaryName, file
 	}
 
 	log.Printf("self-update: checksum verified (%s)", actualHash[:12])
+	return nil
+}
+
+func replaceBinary(tmpPath, execPath string) error {
+	// Try 1: direct rename (atomic, same filesystem)
+	if err := os.Rename(tmpPath, execPath); err == nil {
+		log.Println("self-update: replaced binary via rename")
+		return nil
+	}
+
+	// Try 2: direct copy (cross-device fallback)
+	if err := directCopy(tmpPath, execPath); err == nil {
+		log.Println("self-update: replaced binary via copy")
+		return nil
+	}
+
+	// Try 3: sudo (when binary is in root-owned directory)
+	if err := sudoCopy(tmpPath, execPath); err == nil {
+		log.Println("self-update: replaced binary via sudo")
+		return nil
+	}
+
+	return fmt.Errorf("replace binary: all methods failed (rename, copy, sudo) — check permissions on %s", execPath)
+}
+
+func directCopy(srcPath, dstPath string) error {
+	src, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dst, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		return err
+	}
+	return dst.Close()
+}
+
+func sudoCopy(srcPath, dstPath string) error {
+	log.Println("self-update: trying sudo for binary replacement")
+
+	out, err := exec.Command("sudo", "-n", "cp", "-f", srcPath, dstPath).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("sudo cp: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+
+	out, err = exec.Command("sudo", "-n", "chmod", "0755", dstPath).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("sudo chmod: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+
 	return nil
 }

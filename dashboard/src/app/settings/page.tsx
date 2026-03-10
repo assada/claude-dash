@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Wifi, WifiOff, Check, X, Copy, Terminal, Download, BarChart3, Cpu, FolderOpen, Server, Zap, Volume2, VolumeX, Bell, BellOff, Columns3 } from "lucide-react";
 import type { ServerStatus } from "@/lib/types";
 import { EXPECTED_VERSION, isAgentOutdated } from "@/lib/format";
@@ -334,6 +334,7 @@ function EditForm({ editingServer, setEditingServer, isNew, saving, onSave, onCa
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [servers, setServers] = useState<ServerStatus[]>([]);
   const [serversLoaded, setServersLoaded] = useState(false);
   const [editingServer, setEditingServer] = useState<ServerForm | null>(null);
@@ -447,9 +448,12 @@ export default function SettingsPage() {
 
       <header className="sticky top-0 z-40 backdrop-blur bg-surface-0/85 border-b border-surface-1">
         <div className="flex items-center gap-3 px-6 py-3">
-          <Link href="/" className="btn-ghost flex items-center gap-1 text-[13px] no-underline">
+          <button
+            onClick={() => window.history.length > 1 ? router.back() : router.push("/")}
+            className="btn-ghost flex items-center gap-1 text-[13px]"
+          >
             <ArrowLeft size={14} /> Back
-          </Link>
+          </button>
           <span className="text-[17px] font-semibold text-text-secondary">Settings</span>
         </div>
       </header>
