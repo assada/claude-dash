@@ -89,7 +89,7 @@ func newServer(config *Config, poller *Poller) *Server {
 		subscribers: make(map[*safeConn]bool),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(_ *http.Request) bool {
-				return true // Auth is handled post-upgrade via first message or query param
+				return true // Auth handled post-upgrade via first WS message
 			},
 		},
 	}
@@ -136,9 +136,6 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Check auth from query param / header for backward compatibility
-	queryAuth := checkAuth(r, s.config.Token)
-
 	raw, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("ws upgrade: %v", err)
@@ -147,10 +144,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer raw.Close()
 
 	conn := &safeConn{Conn: raw}
-	authenticated := queryAuth
 
-	if !authenticated {
-		// Wait for auth message (first message must be auth)
+	// First message must be auth
+	if s.config.Token != "" {
 		_, data, err := conn.ReadMessage()
 		if err != nil {
 			return
@@ -158,10 +154,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		var msg ClientMessage
 		if err := json.Unmarshal(data, &msg); err != nil || msg.Type != "auth" || msg.Data != s.config.Token {
 			s.sendError(conn, "unauthorized")
-			conn.Close()
 			return
 		}
-		authenticated = true
 	}
 
 	s.addSubscriber(conn)
