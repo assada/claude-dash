@@ -1,12 +1,15 @@
 export const EXPECTED_VERSION = process.env.NEXT_PUBLIC_AGENT_VERSION || "dev";
 
-// isAgentOutdated compares MAJOR.MINOR only — patch differences are compatible.
+// isAgentOutdated returns true only when agent version is LOWER than expected.
 export function isAgentOutdated(agentVersion: string, expectedVersion: string): boolean {
-  const minor = (v: string) => v.match(/^v?(\d+\.\d+)/)?.[1];
-  const a = minor(agentVersion);
-  const e = minor(expectedVersion);
+  const parse = (v: string) => {
+    const m = v.match(/^v?(\d+)\.(\d+)/);
+    return m ? [Number(m[1]), Number(m[2])] : null;
+  };
+  const a = parse(agentVersion);
+  const e = parse(expectedVersion);
   if (!a || !e) return false;
-  return a !== e;
+  return a[0] < e[0] || (a[0] === e[0] && a[1] < e[1]);
 }
 
 export function timeSince(ts: number): string {

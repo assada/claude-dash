@@ -37,26 +37,12 @@ if (process.env.ENABLE_GUEST !== "false") {
   );
 }
 
-// Comma-separated list of allowed emails. If set, only these users can sign in.
-const allowedEmails = process.env.ALLOWED_EMAILS
-  ? process.env.ALLOWED_EMAILS.split(",").map((e) => e.trim().toLowerCase())
-  : null;
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   adapter: PrismaAdapter(prisma),
   providers,
   session: { strategy: "jwt" },
   callbacks: {
-    async signIn({ user }) {
-      if (!allowedEmails) return true; // no whitelist — allow all
-      const email = user.email?.toLowerCase();
-      if (!email || !allowedEmails.includes(email)) {
-        console.warn(`[auth] Blocked sign-in attempt: ${email || "no email"}`);
-        return false;
-      }
-      return true;
-    },
     redirect({ url, baseUrl }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {
