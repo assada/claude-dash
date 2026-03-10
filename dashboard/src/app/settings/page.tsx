@@ -335,6 +335,7 @@ function EditForm({ editingServer, setEditingServer, isNew, saving, onSave, onCa
 
 export default function SettingsPage() {
   const [servers, setServers] = useState<ServerStatus[]>([]);
+  const [serversLoaded, setServersLoaded] = useState(false);
   const [editingServer, setEditingServer] = useState<ServerForm | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -374,6 +375,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/servers");
       const data = await res.json();
       setServers(data.servers || []);
+      setServersLoaded(true);
     } catch (e) {
       console.error("[settings] Failed to fetch servers:", e);
     }
@@ -553,9 +555,14 @@ export default function SettingsPage() {
               </div>
             );
           })}
-          {servers.length === 0 && (
+          {servers.length === 0 && serversLoaded && (
             <div className="py-4 text-[13px] text-text-faint italic">
               No servers configured. Add one to get started.
+            </div>
+          )}
+          {servers.length === 0 && !serversLoaded && (
+            <div className="py-4 text-[13px] text-text-faint animate-pulse">
+              Loading servers...
             </div>
           )}
         </div>
