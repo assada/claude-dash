@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
+	"time"
 )
 
 const updateRepo = "assada/claude-dash"
@@ -23,7 +25,9 @@ type githubRelease struct {
 func selfUpdate() error {
 	suffix := runtime.GOOS + "-" + runtime.GOARCH
 
-	resp, err := http.Get("https://api.github.com/repos/" + updateRepo + "/releases/latest")
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	resp, err := client.Get("https://api.github.com/repos/" + updateRepo + "/releases/latest")
 	if err != nil {
 		return fmt.Errorf("fetch release: %w", err)
 	}
@@ -57,18 +61,25 @@ func selfUpdate() error {
 	tmpPath := tmpFile.Name()
 	defer os.Remove(tmpPath)
 
-	dlResp, err := http.Get(downloadURL)
+	dlResp, err := client.Get(downloadURL)
 	if err != nil {
 		tmpFile.Close()
 		return fmt.Errorf("download binary: %w", err)
 	}
 	defer dlResp.Body.Close()
 
-	if _, err := io.Copy(tmpFile, dlResp.Body); err != nil {
+	written, err := io.Copy(tmpFile, dlResp.Body)
+	if err != nil {
 		tmpFile.Close()
 		return fmt.Errorf("write binary: %w", err)
 	}
 	tmpFile.Close()
+
+	const minBinarySize int64 = 1 * 1024 * 1024 // 1 MB
+	if written < minBinarySize {
+		return fmt.Errorf("downloaded file too small (%d bytes), likely not a valid binary", written)
+	}
+	log.Printf("self-update: downloaded %d bytes", written)
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
 		return fmt.Errorf("chmod: %w", err)

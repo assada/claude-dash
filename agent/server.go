@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,7 +88,9 @@ func newServer(config *Config, poller *Poller) *Server {
 		poller:      poller,
 		subscribers: make(map[*safeConn]bool),
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin: func(_ *http.Request) bool {
+				return true // Auth is handled post-upgrade via first message or query param
+			},
 		},
 	}
 
@@ -106,6 +110,21 @@ func newServer(config *Config, poller *Poller) *Server {
 	return s
 }
 
+func (s *Server) isAllowedWorkdir(workdir string) bool {
+	dirs := s.config.ExpandWorkdirs()
+	if len(dirs) == 0 {
+		return true // no restriction configured
+	}
+	clean := filepath.Clean(workdir)
+	for _, allowed := range dirs {
+		allowedClean := filepath.Clean(allowed)
+		if clean == allowedClean || strings.HasPrefix(clean, allowedClean+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handleWebSocket)
@@ -117,10 +136,8 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	if !checkAuth(r, s.config.Token) {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+	// Check auth from query param / header for backward compatibility
+	queryAuth := checkAuth(r, s.config.Token)
 
 	raw, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -130,6 +147,23 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer raw.Close()
 
 	conn := &safeConn{Conn: raw}
+	authenticated := queryAuth
+
+	if !authenticated {
+		// Wait for auth message (first message must be auth)
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		var msg ClientMessage
+		if err := json.Unmarshal(data, &msg); err != nil || msg.Type != "auth" || msg.Data != s.config.Token {
+			s.sendError(conn, "unauthorized")
+			conn.Close()
+			return
+		}
+		authenticated = true
+	}
+
 	s.addSubscriber(conn)
 	defer s.removeSubscriber(conn)
 
@@ -177,13 +211,18 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				home, _ := os.UserHomeDir()
 				workdir = home + workdir[1:]
 			}
+			if !s.isAllowedWorkdir(workdir) {
+				s.sendError(conn, "workdir not allowed")
+				continue
+			}
 			name := msg.Name
 			if name == "" {
 				name = "session"
 			}
 			sessionID, err := createTmuxSession(name, workdir, s.config.HistoryLimit, msg.DangerouslySkipPermissions)
 			if err != nil {
-				s.sendError(conn, err.Error())
+				log.Printf("create_session error: %v", err)
+				s.sendError(conn, "failed to create session")
 				continue
 			}
 			s.poller.TrackSession(sessionID, workdir)
@@ -201,7 +240,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			log.Printf("kill_session: %q", msg.SessionID)
 			if err := killTmuxSession(msg.SessionID); err != nil {
 				log.Printf("kill_session error: %v", err)
-				s.sendError(conn, err.Error())
+				s.sendError(conn, "failed to kill session")
 			} else {
 				log.Printf("kill_session: success")
 				s.poller.RemoveSession(msg.SessionID)

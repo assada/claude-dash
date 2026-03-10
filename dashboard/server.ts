@@ -146,20 +146,21 @@ app.prepare().then(() => {
 
         case "create_session":
           if (terminalOnlyMode) break;
+          console.log(`[audit] user=${userId} create_session server=${msg.serverId} workdir=${msg.workdir}`);
           if (msg.serverId && msg.workdir) {
             agentManager.createSession(
               userId,
               msg.serverId,
               msg.workdir,
               msg.name || "session",
-              msg.dangerouslySkipPermissions
+              false
             );
           }
           break;
 
         case "kill_session":
           if (terminalOnlyMode) break;
-          console.log(`[ws] kill_session: serverId=${msg.serverId} sessionId=${msg.sessionId}`);
+          console.log(`[audit] user=${userId} kill_session server=${msg.serverId} session=${msg.sessionId}`);
           if (msg.serverId && msg.sessionId) {
             agentManager.killSession(userId, msg.serverId, msg.sessionId);
           } else {
@@ -168,6 +169,7 @@ app.prepare().then(() => {
           break;
 
         case "terminal_attach":
+          console.log(`[audit] user=${userId} terminal_attach server=${msg.serverId} session=${msg.sessionId}`);
           if (msg.serverId && msg.sessionId) {
             if (terminalProxy) {
               terminalProxy.close();

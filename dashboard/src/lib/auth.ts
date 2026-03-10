@@ -46,11 +46,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     redirect({ url, baseUrl }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {
-        new URL(url);
-        return url;
-      } catch {
-        return baseUrl;
-      }
+        const parsed = new URL(url);
+        if (new URL(baseUrl).origin === parsed.origin) return url;
+      } catch {}
+      return baseUrl;
     },
     jwt({ token, user }) {
       if (user?.id) {

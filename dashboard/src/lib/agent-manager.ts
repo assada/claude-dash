@@ -48,7 +48,7 @@ class AgentConnection {
   ) {}
 
   private get wsUrl(): string {
-    return `ws://${this.config.host}:${this.config.port}/ws?token=${encodeURIComponent(this.config.token)}`;
+    return `ws://${this.config.host}:${this.config.port}/ws`;
   }
 
   connect() {
@@ -67,6 +67,7 @@ class AgentConnection {
     }
 
     this.ws.on("open", () => {
+      this.ws!.send(JSON.stringify({ type: "auth", data: this.config.token }));
       this.online = true;
       this.reconnectDelay = 1000;
       // Socket-level inactivity timeout — auto-resets on any received data
@@ -296,6 +297,7 @@ class AgentConnection {
 
     termWs.on("open", () => {
       console.log(`[terminal-proxy] connected, sending attach for ${sessionId}`);
+      termWs.send(JSON.stringify({ type: "auth", data: this.config.token }));
       termWs.send(
         JSON.stringify({
           type: "attach",
