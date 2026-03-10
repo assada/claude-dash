@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -81,6 +83,12 @@ func selfUpdate() error {
 	}
 	log.Printf("self-update: downloaded %d bytes", written)
 
+	// Verify SHA256 checksum against checksums.txt from release
+	binaryName := "ccdash-agent-" + suffix
+	if err := verifyChecksum(client, release, binaryName, tmpPath); err != nil {
+		return fmt.Errorf("checksum verification failed: %w", err)
+	}
+
 	if err := os.Chmod(tmpPath, 0755); err != nil {
 		return fmt.Errorf("chmod: %w", err)
 	}
@@ -110,5 +118,64 @@ func selfUpdate() error {
 		dst.Close()
 	}
 
+	return nil
+}
+
+func verifyChecksum(client *http.Client, release githubRelease, binaryName, filePath string) error {
+	// Find checksums.txt in release assets
+	var checksumsURL string
+	for _, asset := range release.Assets {
+		if asset.Name == "checksums.txt" {
+			checksumsURL = asset.BrowserDownloadURL
+			break
+		}
+	}
+	if checksumsURL == "" {
+		log.Println("self-update: no checksums.txt in release, skipping verification")
+		return nil
+	}
+
+	resp, err := client.Get(checksumsURL)
+	if err != nil {
+		return fmt.Errorf("download checksums.txt: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read checksums.txt: %w", err)
+	}
+
+	// Parse expected checksum for our binary
+	var expectedHash string
+	for _, line := range strings.Split(string(body), "\n") {
+		parts := strings.Fields(line)
+		if len(parts) == 2 && parts[1] == binaryName {
+			expectedHash = parts[0]
+			break
+		}
+	}
+	if expectedHash == "" {
+		return fmt.Errorf("no checksum found for %s in checksums.txt", binaryName)
+	}
+
+	// Compute actual hash
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("open file for hashing: %w", err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return fmt.Errorf("hash file: %w", err)
+	}
+	actualHash := hex.EncodeToString(h.Sum(nil))
+
+	if actualHash != expectedHash {
+		return fmt.Errorf("SHA256 mismatch: expected %s, got %s", expectedHash, actualHash)
+	}
+
+	log.Printf("self-update: checksum verified (%s)", actualHash[:12])
 	return nil
 }
