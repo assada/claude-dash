@@ -15,6 +15,7 @@ type JSONLEntry struct {
 	CWD              string         `json:"cwd"`
 	IsMeta           bool           `json:"isMeta"`
 	IsCompactSummary bool           `json:"isCompactSummary"`
+	StopReason       string         // from message.stop_reason
 	Usage            UsageData      `json:"usage"`
 	ContentBlocks    []ContentBlock // extracted from message.content
 	ToolUseResult    string         `json:"-"` // extracted from user meta content
@@ -53,10 +54,11 @@ type rawJSONLEntry struct {
 }
 
 type rawMessage struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-	Model   string          `json:"model"`
-	Usage   UsageData       `json:"usage"`
+	Role       string          `json:"role"`
+	Content    json.RawMessage `json:"content"`
+	Model      string          `json:"model"`
+	Usage      UsageData       `json:"usage"`
+	StopReason *string         `json:"stop_reason"` // nil while streaming, "end_turn" when done
 }
 
 func parseJSONLLine(line []byte) (*JSONLEntry, error) {
@@ -85,12 +87,15 @@ func parseJSONLLine(line []byte) (*JSONLEntry, error) {
 		return entry, nil // non-fatal: entry without parseable message
 	}
 
-	// Claude Code stores model and usage inside message, not at top level
+	// Claude Code stores model, usage, stop_reason inside message, not at top level
 	if entry.Model == "" && msg.Model != "" {
 		entry.Model = msg.Model
 	}
 	if entry.Usage.InputTokens == 0 && msg.Usage.InputTokens > 0 {
 		entry.Usage = msg.Usage
+	}
+	if msg.StopReason != nil {
+		entry.StopReason = *msg.StopReason
 	}
 
 	if len(msg.Content) == 0 {

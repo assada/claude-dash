@@ -43,7 +43,12 @@ func classifyBlock(entry *JSONLEntry, block ContentBlock) string {
 	switch block.Type {
 	case "text":
 		if entry.Type == "assistant" {
-			return "ending"
+			// Text is "ending" only when stop_reason is set (response complete).
+			// During streaming, stop_reason is empty → still working.
+			if entry.StopReason != "" {
+				return "ending"
+			}
+			return "ongoing" // still streaming text
 		}
 	case "thinking":
 		return "ongoing"

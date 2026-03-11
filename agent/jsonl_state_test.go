@@ -29,7 +29,7 @@ func TestDetectJSONLState_IdleAfterTextOutput(t *testing.T) {
 	entries := []*JSONLEntry{
 		{Type: "assistant", ContentBlocks: []ContentBlock{{Type: "tool_use", Name: "Read"}}},
 		{Type: "user", IsMeta: true, ContentBlocks: []ContentBlock{{Type: "tool_result"}}},
-		{Type: "assistant", ContentBlocks: []ContentBlock{{Type: "text", Text: "Done."}}},
+		{Type: "assistant", StopReason: "end_turn", ContentBlocks: []ContentBlock{{Type: "text", Text: "Done."}}},
 	}
 	state := detectJSONLState(entries)
 	if state != StateIdle {
@@ -37,9 +37,19 @@ func TestDetectJSONLState_IdleAfterTextOutput(t *testing.T) {
 	}
 }
 
+func TestDetectJSONLState_WorkingWhileStreamingText(t *testing.T) {
+	entries := []*JSONLEntry{
+		{Type: "assistant", StopReason: "", ContentBlocks: []ContentBlock{{Type: "text", Text: "Writing a poem..."}}},
+	}
+	state := detectJSONLState(entries)
+	if state != StateWorking {
+		t.Errorf("expected working during streaming, got %s", state)
+	}
+}
+
 func TestDetectJSONLState_WorkingToolUseAfterText(t *testing.T) {
 	entries := []*JSONLEntry{
-		{Type: "assistant", ContentBlocks: []ContentBlock{{Type: "text", Text: "Let me check..."}}},
+		{Type: "assistant", StopReason: "end_turn", ContentBlocks: []ContentBlock{{Type: "text", Text: "Let me check..."}}},
 		{Type: "assistant", ContentBlocks: []ContentBlock{{Type: "tool_use", Name: "Bash"}}},
 	}
 	state := detectJSONLState(entries)
