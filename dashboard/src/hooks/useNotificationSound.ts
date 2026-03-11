@@ -5,6 +5,7 @@ import { useRef, useCallback } from "react";
 export function useNotificationSound() {
   const doneRef = useRef<HTMLAudioElement | null>(null);
   const alertRef = useRef<HTMLAudioElement | null>(null);
+  const infoRef = useRef<HTMLAudioElement | null>(null);
 
   const playDone = useCallback(() => {
     if (!doneRef.current) {
@@ -24,5 +25,14 @@ export function useNotificationSound() {
     alertRef.current.play().catch(() => {});
   }, []);
 
-  return { playDone, playAlert };
+  const playInfo = useCallback(() => {
+    if (!infoRef.current) {
+      infoRef.current = new Audio("/done.wav");
+      infoRef.current.volume = 0.3;
+    }
+    infoRef.current.currentTime = 0;
+    infoRef.current.play().catch(() => {});
+  }, []);
+
+  return { playDone, playAlert, playInfo };
 }

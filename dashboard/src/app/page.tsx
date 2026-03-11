@@ -26,6 +26,7 @@ export default function Home() {
     servers,
     createSession,
     killSession: rawKillSession,
+    onSessionEvent,
   } = useSessionStateContext();
   const [showNewSession, setShowNewSession] = useState(false);
   const [defaultNewServerId, setDefaultNewServerId] = useState<string>();
@@ -109,7 +110,7 @@ export default function Home() {
     return servers.reduce((sum, s) => sum + (s.usage?.totalCost ?? 0), 0);
   }, [servers]);
 
-  useNotification(servers, workspaceEnabled ? workspace.openPane : undefined);
+  useNotification(servers, workspaceEnabled ? workspace.openPane : undefined, onSessionEvent);
 
   const toggleMetrics = useCallback(() => {
     setMetricsVisible((v) => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { ServerStatus, SessionState } from "@/lib/types";
+import type { ServerStatus, SessionState, SessionEvent } from "@/lib/types";
 import { useNotificationSound } from "./useNotificationSound";
 
 const LS_SOUND = "notif-sound-enabled";
@@ -59,9 +59,10 @@ export function useNotificationPrefs() {
 export function useNotification(
   servers: ServerStatus[],
   onOpenPane?: (serverId: string, sessionId: string) => void,
+  onSessionEvent?: (handler: (event: SessionEvent) => void) => void,
 ) {
   const prevStatesRef = useRef<Map<string, SessionState>>(new Map());
-  const { playDone, playAlert } = useNotificationSound();
+  const { playDone, playAlert, playInfo } = useNotificationSound();
   const router = useRouter();
   const soundEnabled = useRef(readPref(LS_SOUND, true));
   const browserEnabled = useRef(readPref(LS_BROWSER, true));
@@ -174,4 +175,32 @@ export function useNotification(
     if (doneSession && canNotify) showNotification("Session done", doneSession);
     if (alertSession && canNotify) showNotification("Session needs attention", alertSession);
   }, [servers, playDone, playAlert, router]);
+
+  // Simple notification helper for session events (Errata E13)
+  const showEventNotification = useCallback((title: string, body: string) => {
+    if (!browserEnabled.current || Notification.permission !== "granted") return;
+    new Notification(title, { body, icon: "/favicon.ico" });
+  }, []);
+
+  // Handle session events (errors, rate limits, compaction)
+  useEffect(() => {
+    if (!onSessionEvent) return;
+    onSessionEvent((event: SessionEvent) => {
+      if (!soundEnabled.current) return;
+      switch (event.event) {
+        case "error":
+          playAlert();
+          showEventNotification("Tool error", event.message);
+          break;
+        case "rate_limit":
+          playAlert();
+          showEventNotification("Rate limited", event.message);
+          break;
+        case "compaction":
+          playInfo();
+          showEventNotification("Context compacted", event.message);
+          break;
+      }
+    });
+  }, [playAlert, playInfo, showEventNotification, onSessionEvent]);
 }
