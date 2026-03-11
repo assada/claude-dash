@@ -2,11 +2,12 @@
 
 import { useState, useCallback } from "react";
 import { StatusIndicator, StateLabel } from "./StatusIndicator";
+import { ContextBar } from "./ContextBar";
 import { ArrowLeft, X, SendHorizontal } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { shortName as formatShortName } from "@/lib/format";
 import { useTerminalPane } from "./TerminalPane";
-import type { SessionState } from "@/lib/types";
+import type { SessionState, JSONLSessionData } from "@/lib/types";
 
 export function TerminalView({
   serverId,
@@ -14,6 +15,7 @@ export function TerminalView({
   sessionName,
   serverName,
   sessionState,
+  jsonlData,
   onBack,
   terminalOnly = false,
 }: {
@@ -22,6 +24,7 @@ export function TerminalView({
   sessionName: string;
   serverName: string;
   sessionState: SessionState;
+  jsonlData?: JSONLSessionData;
   onBack: () => void;
   terminalOnly?: boolean;
 }) {
@@ -67,6 +70,9 @@ export function TerminalView({
           <X size={14} />
         </button>
       </div>
+
+      {/* Context bar */}
+      {jsonlData && <ContextBar data={jsonlData} />}
 
       {/* Terminal */}
       <div className={`flex-1 min-h-0 ${isMobile ? "overflow-x-auto" : ""}`}>

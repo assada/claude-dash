@@ -46,10 +46,20 @@ export default function SessionPage({
     const server = servers.find((s) => s.id === serverId);
     if (!server) return null;
     const session = server.sessions.find((s) => s.id === sessionId);
+    const jsonlData = session ? {
+      claudeSessionId: (session as any).claudeSessionId,
+      currentActivity: (session as any).currentActivity,
+      toolName: (session as any).toolName,
+      model: (session as any).model,
+      contextTokens: (session as any).contextTokens,
+      contextLimit: (session as any).contextLimit,
+      compactionCount: (session as any).compactionCount,
+    } : undefined;
     return {
       sessionName: session?.name || sessionId,
       serverName: server.name,
       sessionState: session?.state || ("dead" as const),
+      jsonlData: jsonlData?.claudeSessionId ? jsonlData : undefined,
     };
   }, [servers, serverId, sessionId]);
 
@@ -77,6 +87,7 @@ export default function SessionPage({
       sessionName={resolved.sessionName}
       serverName={resolved.serverName}
       sessionState={resolved.sessionState}
+      jsonlData={resolved.jsonlData}
       onBack={handleBack}
       terminalOnly
     />
