@@ -50,6 +50,10 @@ func classifyBlock(entry *JSONLEntry, block ContentBlock) string {
 			}
 			return "ongoing" // still streaming text
 		}
+		if entry.Type == "user" && !entry.IsMeta {
+			// Real user message → Claude will start working now
+			return "ongoing"
+		}
 	case "thinking":
 		return "ongoing"
 	case "tool_use":
