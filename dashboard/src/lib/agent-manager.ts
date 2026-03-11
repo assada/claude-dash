@@ -131,10 +131,32 @@ class AgentConnection {
     switch (msg.type) {
       case "sessions":
         if (msg.sessions) {
+          // Preserve JSONL-derived fields across session list refreshes.
+          // The agent sends a full session list every 500ms via tmux polling,
+          // which would overwrite fields merged by handleSessionState().
+          const prevJsonl = new Map<string, Partial<SessionInfo>>();
+          for (const s of this.sessions) {
+            if (s.claudeSessionId) {
+              prevJsonl.set(s.id, {
+                claudeSessionId: s.claudeSessionId,
+                currentActivity: s.currentActivity,
+                toolName: s.toolName,
+                model: s.model,
+                contextTokens: s.contextTokens,
+                contextLimit: s.contextLimit,
+                compactionCount: s.compactionCount,
+                sessionInputTokens: s.sessionInputTokens,
+                sessionOutputTokens: s.sessionOutputTokens,
+                cacheReadTokens: s.cacheReadTokens,
+                cacheCreateTokens: s.cacheCreateTokens,
+              });
+            }
+          }
           this.sessions = msg.sessions.map((s) => ({
             ...s,
             serverId: this.config.id,
             serverName: this.config.name,
+            ...(prevJsonl.get(s.id) || {}),
           }));
           this.onEvent("sessions");
         }
