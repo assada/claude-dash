@@ -45,25 +45,26 @@ type ClientMessage struct {
 
 // Agent → Client messages
 type ServerMessage struct {
-	Type     string         `json:"type"`
-	Sessions []*SessionInfo `json:"sessions"`
-	Session  string         `json:"session_id,omitempty"`
-	Name     string         `json:"name,omitempty"`
-	Data     string         `json:"data,omitempty"`
-	Hostname string         `json:"hostname,omitempty"`
-	OS       string         `json:"os,omitempty"`
-	Version  string         `json:"version,omitempty"`
-	Dirs     []string       `json:"dirs,omitempty"`
-	Message  string         `json:"message,omitempty"`
+	Type            string         `json:"type"`
+	Sessions        []*SessionInfo `json:"sessions"`
+	Session         string         `json:"session_id,omitempty"`
+	Name            string         `json:"name,omitempty"`
+	ClaudeSessionID string         `json:"claude_session_id,omitempty"`
+	Data            string         `json:"data,omitempty"`
+	Hostname        string         `json:"hostname,omitempty"`
+	OS              string         `json:"os,omitempty"`
+	Version         string         `json:"version,omitempty"`
+	Dirs            []string       `json:"dirs,omitempty"`
+	Message         string         `json:"message,omitempty"`
 
 	// System metrics (included with machine_info)
-	CpuPercent float64 `json:"cpu_percent,omitempty"`
-	MemTotal   uint64  `json:"mem_total,omitempty"`
-	MemUsed    uint64  `json:"mem_used,omitempty"`
-	DiskTotal  uint64  `json:"disk_total,omitempty"`
-	DiskUsed   uint64  `json:"disk_used,omitempty"`
-	UptimeSecs uint64  `json:"uptime_secs,omitempty"`
-	LoadAvg    float64 `json:"load_avg,omitempty"`
+	CpuPercent      float64        `json:"cpu_percent,omitempty"`
+	MemTotal        uint64         `json:"mem_total,omitempty"`
+	MemUsed         uint64         `json:"mem_used,omitempty"`
+	DiskTotal       uint64         `json:"disk_total,omitempty"`
+	DiskUsed        uint64         `json:"disk_used,omitempty"`
+	UptimeSecs      uint64         `json:"uptime_secs,omitempty"`
+	LoadAvg         float64        `json:"load_avg,omitempty"`
 }
 
 // UsageMessage is sent to subscribers when new usage entries are available.
@@ -213,7 +214,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if name == "" {
 				name = "session"
 			}
-			sessionID, err := createTmuxSession(name, workdir, s.config.HistoryLimit, msg.DangerouslySkipPermissions)
+			sessionID, claudeUUID, err := createTmuxSession(name, workdir, s.config.HistoryLimit, msg.DangerouslySkipPermissions)
 			if err != nil {
 				log.Printf("create_session error: %v", err)
 				s.sendError(conn, "failed to create session")
@@ -221,9 +222,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			s.poller.TrackSession(sessionID, workdir)
 			s.sendMessage(conn, ServerMessage{
-				Type:    "session_created",
-				Session: sessionID,
-				Name:    sessionID,
+				Type:            "session_created",
+				Session:         sessionID,
+				Name:            name,
+				ClaudeSessionID: claudeUUID,
 			})
 
 		case "kill_session":

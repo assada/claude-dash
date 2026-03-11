@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type TmuxSession struct {
@@ -23,8 +25,9 @@ func tmuxAvailable() bool {
 	return err == nil
 }
 
-func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPermissions bool) (string, error) {
-	sessionID := fmt.Sprintf("cc-%d-%s", time.Now().UnixMilli(), sanitizeName(name))
+func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPermissions bool) (sessionID string, claudeUUID string, err error) {
+	sessionID = fmt.Sprintf("cc-%d-%s", time.Now().UnixMilli(), sanitizeName(name))
+	claudeUUID = uuid.New().String()
 
 	// Create tmux session
 	cmd := exec.Command("tmux", "new-session", "-d",
@@ -34,7 +37,7 @@ func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPe
 		"-y", "50",
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("tmux new-session: %s: %w", string(out), err)
+		return "", "", fmt.Errorf("tmux new-session: %s: %w", string(out), err)
 	}
 
 	// Make tmux invisible and behave like a plain terminal.
@@ -63,16 +66,16 @@ func createTmuxSession(name, workdir string, historyLimit int, dangerouslySkipPe
 	}
 
 	// Start Claude Code inside
-	claudeCmd := "claude"
+	claudeCmd := fmt.Sprintf("claude --session-id %s", claudeUUID)
 	if dangerouslySkipPermissions {
-		claudeCmd = "claude --dangerously-skip-permissions"
+		claudeCmd += " --dangerously-skip-permissions"
 	}
 	cmd = exec.Command("tmux", "send-keys", "-t", sessionID, claudeCmd, "Enter")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("tmux send-keys: %s: %w", string(out), err)
+		return "", "", fmt.Errorf("tmux send-keys: %s: %w", string(out), err)
 	}
 
-	return sessionID, nil
+	return sessionID, claudeUUID, nil
 }
 
 func listTmuxSessions() ([]TmuxSession, error) {
