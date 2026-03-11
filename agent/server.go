@@ -593,6 +593,8 @@ func (s *Server) broadcastSessionState(tmuxName string, state *JSONLSessionState
 	}
 	s.mu.Unlock()
 
+	log.Printf("[jsonl] broadcastSessionState: session=%s state=%s ctx=%d/%d activity=%q subs=%d", tmuxName, state.State, contextTokens, getContextLimit(state.MaxInputTokens), state.Activity, len(subs))
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return
@@ -650,6 +652,13 @@ func (s *Server) handleJSONLEvents(events []JSONLEvent, homeDir string) {
 }
 
 func (s *Server) processSessionEntries(tmuxName string, entries []*JSONLEntry) {
+	for _, e := range entries {
+		blocks := len(e.ContentBlocks)
+		log.Printf("[jsonl] entry: type=%s reqId=%q model=%q usage.in=%d blocks=%d", e.Type, e.RequestID, e.Model, e.Usage.InputTokens, blocks)
+		for _, b := range e.ContentBlocks {
+			log.Printf("[jsonl]   block: type=%s name=%q isErr=%v", b.Type, b.Name, b.IsError)
+		}
+	}
 	var pendingEvents []struct{ event, message string }
 
 	s.jsonlMu.Lock()

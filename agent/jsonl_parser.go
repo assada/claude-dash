@@ -55,6 +55,8 @@ type rawJSONLEntry struct {
 type rawMessage struct {
 	Role    string          `json:"role"`
 	Content json.RawMessage `json:"content"`
+	Model   string          `json:"model"`
+	Usage   UsageData       `json:"usage"`
 }
 
 func parseJSONLLine(line []byte) (*JSONLEntry, error) {
@@ -81,6 +83,14 @@ func parseJSONLLine(line []byte) (*JSONLEntry, error) {
 	var msg rawMessage
 	if err := json.Unmarshal(raw.Message, &msg); err != nil {
 		return entry, nil // non-fatal: entry without parseable message
+	}
+
+	// Claude Code stores model and usage inside message, not at top level
+	if entry.Model == "" && msg.Model != "" {
+		entry.Model = msg.Model
+	}
+	if entry.Usage.InputTokens == 0 && msg.Usage.InputTokens > 0 {
+		entry.Usage = msg.Usage
 	}
 
 	if len(msg.Content) == 0 {
