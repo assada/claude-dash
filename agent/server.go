@@ -192,6 +192,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	isFirstSubscriber := s.subscriberCount() == 0
 	s.addSubscriber(conn)
 	defer s.removeSubscriber(conn)
 
@@ -199,9 +200,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessions := s.poller.GetSessions()
 	s.sendMessage(conn, ServerMessage{Type: "sessions", Sessions: sessions})
 
-	// Re-scan all usage files so new subscriber gets historical data.
-	// Dashboard deduplicates via skipDuplicates on DB insert.
-	go s.usage.RescanAll()
+	// Rescan usage files only for the first subscriber so it gets historical data.
+	// Subsequent connections reuse the already-scanned offsets.
+	if isFirstSubscriber {
+		go s.usage.RescanAll()
+	}
 
 	var terminal *TerminalSession
 
@@ -450,6 +453,12 @@ func (s *Server) sendMessage(conn *safeConn, msg ServerMessage) {
 
 func (s *Server) sendError(conn *safeConn, message string) {
 	s.sendMessage(conn, ServerMessage{Type: "error", Message: message})
+}
+
+func (s *Server) subscriberCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.subscribers)
 }
 
 func (s *Server) addSubscriber(conn *safeConn) {
