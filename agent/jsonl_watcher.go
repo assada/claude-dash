@@ -254,7 +254,10 @@ func (w *JSONLWatcher) catchUpLoop() {
 // WatchSession adds a specific JSONL file's directory to the watcher.
 func (w *JSONLWatcher) WatchSession(jsonlPath string) {
 	dir := filepath.Dir(jsonlPath)
-	w.watcher.Add(dir)
+	log.Printf("[jsonl-watcher] WatchSession: path=%s dir=%s", jsonlPath, dir)
+	if err := w.watcher.Add(dir); err != nil {
+		log.Printf("[jsonl-watcher] WatchSession failed to add dir %s: %v", dir, err)
+	}
 
 	// Also watch for subagent directory
 	sessionUUID := strings.TrimSuffix(filepath.Base(jsonlPath), ".jsonl")
