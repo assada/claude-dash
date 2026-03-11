@@ -69,11 +69,11 @@ func main() {
 	// Create server
 	srv := newServer(config, poller)
 
-	// Session map
-	srv.sessionMap = newSessionMap()
-	srv.jsonlStates = make(map[string]*JSONLSessionState)
-
+	// Session map (persisted to disk, survives agent restarts)
 	homeDir, _ := os.UserHomeDir()
+	sessionMapPath := filepath.Join(homeDir, ".claude-dashboard", "session-map.json")
+	srv.sessionMap = newSessionMap(sessionMapPath)
+	srv.jsonlStates = make(map[string]*JSONLSessionState)
 
 	// JSONL watcher
 	jsonlWatcher, err := newJSONLWatcher(func(events []JSONLEvent) {
@@ -84,6 +84,14 @@ func main() {
 	} else {
 		srv.jsonlWatcher = jsonlWatcher
 		defer jsonlWatcher.Stop()
+	}
+
+	// Restore JSONL watchers for sessions loaded from disk
+	if srv.jsonlWatcher != nil {
+		for tmuxName, jsonlPath := range srv.sessionMap.AllJSONLPaths(homeDir) {
+			srv.jsonlWatcher.WatchSession(jsonlPath)
+			log.Printf("Restored JSONL watch for %s", tmuxName)
+		}
 	}
 
 	// State merger: JSONL primary, tmux for needs_attention

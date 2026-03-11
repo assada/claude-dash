@@ -23,7 +23,7 @@ func TestEncodeWorkdir(t *testing.T) {
 }
 
 func TestSessionMap_StoreAndRetrieve(t *testing.T) {
-	sm := newSessionMap()
+	sm := newSessionMap("")
 	sm.Set("cc-123-proj", "a1b2c3d4-uuid", "/home/user/proj")
 
 	uuid, workdir, ok := sm.Get("cc-123-proj")
@@ -39,7 +39,7 @@ func TestSessionMap_StoreAndRetrieve(t *testing.T) {
 }
 
 func TestSessionMap_JSONLPath(t *testing.T) {
-	sm := newSessionMap()
+	sm := newSessionMap("")
 	sm.Set("cc-123-proj", "a1b2c3d4-uuid", "/Users/me/projects/cp")
 
 	path := sm.JSONLPath("cc-123-proj", "/Users/me")
@@ -50,7 +50,7 @@ func TestSessionMap_JSONLPath(t *testing.T) {
 }
 
 func TestSessionMap_NotFound(t *testing.T) {
-	sm := newSessionMap()
+	sm := newSessionMap("")
 	_, _, ok := sm.Get("nonexistent")
 	if ok {
 		t.Error("expected not found")
@@ -58,7 +58,7 @@ func TestSessionMap_NotFound(t *testing.T) {
 }
 
 func TestSessionMap_Delete(t *testing.T) {
-	sm := newSessionMap()
+	sm := newSessionMap("")
 	sm.Set("cc-123-proj", "uuid", "/work")
 	sm.Delete("cc-123-proj")
 	_, _, ok := sm.Get("cc-123-proj")
@@ -94,7 +94,7 @@ func TestGetContextLimit_ZeroTokens(t *testing.T) {
 }
 
 func TestSessionMap_PathPrefixMap(t *testing.T) {
-	sm := newSessionMap()
+	sm := newSessionMap("")
 	sm.Set("cc-1-proj", "uuid-aaa", "/Users/me/projects/cp")
 	sm.Set("cc-2-work", "uuid-bbb", "/home/user/work")
 

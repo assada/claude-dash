@@ -2,6 +2,9 @@
 package main
 
 import (
+	"encoding/json"
+	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,18 +18,23 @@ type sessionMapping struct {
 type SessionMap struct {
 	mu       sync.RWMutex
 	sessions map[string]sessionMapping // tmuxName -> mapping
+	filePath string                    // persist path
 }
 
-func newSessionMap() *SessionMap {
-	return &SessionMap{
+func newSessionMap(filePath string) *SessionMap {
+	sm := &SessionMap{
 		sessions: make(map[string]sessionMapping),
+		filePath: filePath,
 	}
+	sm.load()
+	return sm
 }
 
 func (m *SessionMap) Set(tmuxName, claudeUUID, workdir string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sessions[tmuxName] = sessionMapping{ClaudeUUID: claudeUUID, Workdir: workdir}
+	m.saveLocked()
 }
 
 func (m *SessionMap) Get(tmuxName string) (claudeUUID, workdir string, ok bool) {
@@ -43,6 +51,38 @@ func (m *SessionMap) Delete(tmuxName string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.sessions, tmuxName)
+	m.saveLocked()
+}
+
+// load reads session map from disk. Called once at startup.
+func (m *SessionMap) load() {
+	if m.filePath == "" {
+		return
+	}
+	data, err := os.ReadFile(m.filePath)
+	if err != nil {
+		return // file doesn't exist yet, that's fine
+	}
+	var sessions map[string]sessionMapping
+	if err := json.Unmarshal(data, &sessions); err != nil {
+		log.Printf("session-map: failed to parse %s: %v", m.filePath, err)
+		return
+	}
+	m.sessions = sessions
+	log.Printf("session-map: loaded %d mappings from disk", len(sessions))
+}
+
+// saveLocked writes session map to disk. Must be called with mu held.
+func (m *SessionMap) saveLocked() {
+	if m.filePath == "" {
+		return
+	}
+	data, err := json.Marshal(m.sessions)
+	if err != nil {
+		return
+	}
+	os.MkdirAll(filepath.Dir(m.filePath), 0755)
+	os.WriteFile(m.filePath, data, 0644)
 }
 
 // JSONLPath returns the expected JSONL file path for a tmux session.

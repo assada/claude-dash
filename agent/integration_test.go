@@ -10,7 +10,7 @@ import (
 func TestFullFlow_JSONLWriteToStateDetection(t *testing.T) {
 	dir := t.TempDir()
 
-	sm := newSessionMap()
+	sm := newSessionMap("")
 	sm.Set("cc-test-session", "test-uuid", "/tmp/project")
 
 	encodedDir := filepath.Join(dir, encodeWorkdir("/tmp/project"))
