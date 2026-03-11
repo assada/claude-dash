@@ -185,11 +185,13 @@ func (d *Deduplicator) SessionTotals() (input, output, cacheRead, cacheCreate in
 	return
 }
 
-// ContextTokens returns input_tokens from the most recent API call.
+// ContextTokens returns the total context window fill from the most recent API call.
+// This is input_tokens + cache_read + cache_creation (all contribute to context size).
 func (d *Deduplicator) ContextTokens() int {
 	if len(d.order) == 0 {
 		return 0
 	}
 	lastReqID := d.order[len(d.order)-1]
-	return d.lastByRequestID[lastReqID].Usage.InputTokens
+	u := d.lastByRequestID[lastReqID].Usage
+	return u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens
 }

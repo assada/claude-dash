@@ -151,14 +151,18 @@ func TestDeduplicator_ContextTokens(t *testing.T) {
 	d := newDeduplicator()
 
 	e1 := &JSONLEntry{RequestID: "req_1", Usage: UsageData{InputTokens: 50000}}
-	e2 := &JSONLEntry{RequestID: "req_2", Usage: UsageData{InputTokens: 80000}}
+	e2 := &JSONLEntry{RequestID: "req_2", Usage: UsageData{
+		InputTokens:              3,
+		CacheReadInputTokens:     10000,
+		CacheCreationInputTokens: 13000,
+	}}
 
 	d.Add(e1)
 	d.Add(e2)
 
 	ctx := d.ContextTokens()
-	// Should be the input_tokens from the LAST added entry (most recent API call)
-	if ctx != 80000 {
-		t.Errorf("expected context tokens 80000, got %d", ctx)
+	// Context = input + cache_read + cache_creation from last entry
+	if ctx != 23003 {
+		t.Errorf("expected context tokens 23003, got %d", ctx)
 	}
 }
