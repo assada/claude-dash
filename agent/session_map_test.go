@@ -67,15 +67,29 @@ func TestSessionMap_Delete(t *testing.T) {
 	}
 }
 
-func TestModelContextLimit(t *testing.T) {
-	if getContextLimit("claude-opus-4-6") != 1_000_000 {
-		t.Error("opus-4-6 should be 1M")
+func TestGetContextLimit_Default200k(t *testing.T) {
+	// When max observed tokens is under 200k, assume 200k limit
+	if getContextLimit(50000) != 200_000 {
+		t.Error("should be 200k when observed < 200k")
 	}
-	if getContextLimit("claude-sonnet-4-5") != 200_000 {
-		t.Error("sonnet-4-5 should be 200k")
+	if getContextLimit(199_999) != 200_000 {
+		t.Error("should be 200k when observed just under limit")
 	}
-	if getContextLimit("unknown-model") != 200_000 {
-		t.Error("unknown should default to 200k")
+}
+
+func TestGetContextLimit_Auto1M(t *testing.T) {
+	// When max observed tokens exceeds 200k, auto-detect as 1M
+	if getContextLimit(200_001) != 1_000_000 {
+		t.Error("should be 1M when observed > 200k")
+	}
+	if getContextLimit(500_000) != 1_000_000 {
+		t.Error("should be 1M when observed 500k")
+	}
+}
+
+func TestGetContextLimit_ZeroTokens(t *testing.T) {
+	if getContextLimit(0) != 200_000 {
+		t.Error("should default to 200k with no data")
 	}
 }
 

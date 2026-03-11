@@ -88,27 +88,17 @@ func encodeWorkdir(workdir string) string {
 	return strings.ReplaceAll(workdir, "/", "-")
 }
 
-// Model context limits
-var modelContextLimits = map[string]int{
-	"claude-opus-4-6":   1_000_000,
-	"claude-opus-4-5":   200_000,
-	"claude-sonnet-4-6": 1_000_000,
-	"claude-sonnet-4-5": 200_000,
-	"claude-sonnet-4":   200_000,
-	"claude-haiku-4-5":  200_000,
-	"claude-haiku-3-5":  200_000,
-}
+// defaultContextLimit is 200k — safe assumption for all models.
+// Claude 4.6 models CAN have 1M context, but the [1m] suffix is NOT stored in JSONL.
+// We detect 1M dynamically: if input_tokens ever exceeds 200k, it's definitely 1M.
+const defaultContextLimit = 200_000
 
-func getContextLimit(model string) int {
-	// Try exact match first
-	if limit, ok := modelContextLimits[model]; ok {
-		return limit
+// getContextLimit returns the context window size.
+// maxObservedInputTokens is the highest input_tokens seen in any entry for this session.
+// If it exceeds 200k, the session is using 1M context (auto-detected).
+func getContextLimit(maxObservedInputTokens int) int {
+	if maxObservedInputTokens > defaultContextLimit {
+		return 1_000_000
 	}
-	// Try prefix matching (handles versions like claude-opus-4-6[1m])
-	for name, limit := range modelContextLimits {
-		if strings.HasPrefix(model, name) {
-			return limit
-		}
-	}
-	return 200_000
+	return defaultContextLimit
 }
