@@ -20,11 +20,12 @@ type SessionInfo struct {
 }
 
 type Poller struct {
-	mu       sync.RWMutex
-	sessions map[string]*SessionInfo // sessionName -> info
-	workdirs map[string]string       // sessionName -> workdir (tracked at creation)
-	onChange func(sessions []*SessionInfo)
-	stopCh   chan struct{}
+	mu          sync.RWMutex
+	sessions    map[string]*SessionInfo // sessionName -> info
+	workdirs    map[string]string       // sessionName -> workdir (tracked at creation)
+	onChange    func(sessions []*SessionInfo)
+	stateMerger func(tmuxName string, tmuxState SessionState) SessionState
+	stopCh      chan struct{}
 }
 
 func newPoller() *Poller {
@@ -120,6 +121,9 @@ func (p *Poller) poll() {
 			state = StateDead
 		} else {
 			state = detectState(paneText)
+			if p.stateMerger != nil {
+				state = p.stateMerger(ts.Name, state)
+			}
 			lastLine = extractContentLine(paneText)
 			// Fallback: if smart extraction filtered everything out,
 			// show the raw last non-empty line — junk is better than nothing.

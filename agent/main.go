@@ -69,6 +69,37 @@ func main() {
 	// Create server
 	srv := newServer(config, poller)
 
+	// Session map
+	srv.sessionMap = newSessionMap()
+	srv.jsonlStates = make(map[string]*JSONLSessionState)
+
+	homeDir, _ := os.UserHomeDir()
+
+	// JSONL watcher
+	jsonlWatcher, err := newJSONLWatcher(func(events []JSONLEvent) {
+		srv.handleJSONLEvents(events, homeDir)
+	})
+	if err != nil {
+		log.Printf("JSONL watcher failed to start: %v", err)
+	} else {
+		srv.jsonlWatcher = jsonlWatcher
+		defer jsonlWatcher.Stop()
+	}
+
+	// State merger: JSONL primary, tmux for needs_attention
+	poller.stateMerger = func(tmuxName string, tmuxState SessionState) SessionState {
+		srv.jsonlMu.RLock()
+		jsonlState, exists := srv.jsonlStates[tmuxName]
+		srv.jsonlMu.RUnlock()
+		if !exists || jsonlState.State == "" {
+			return tmuxState
+		}
+		if tmuxState == StateNeedsAttention {
+			return StateNeedsAttention
+		}
+		return jsonlState.State
+	}
+
 	// Start HTTP server
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -89,6 +120,9 @@ func main() {
 		<-sigCh
 		log.Println("Shutting down...")
 		srv.usage.Stop()
+		if srv.jsonlWatcher != nil {
+			srv.jsonlWatcher.Stop()
+		}
 		poller.Stop()
 		listener.Close()
 		os.Exit(0)

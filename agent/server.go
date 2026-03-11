@@ -16,6 +16,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// JSONLSessionState tracks JSONL-derived state for a single tmux session.
+type JSONLSessionState struct {
+	Entries        []*JSONLEntry // last 20 entries for state detection
+	Dedup          *Deduplicator
+	State          SessionState
+	Activity       string
+	ToolName       string
+	Model          string
+	CompactCount   int
+	ErrorDetected  bool
+	RateLimited    bool
+	MaxInputTokens int // track max for context limit auto-detection
+}
+
 // safeConn wraps a websocket.Conn with a mutex to prevent concurrent writes.
 type safeConn struct {
 	*websocket.Conn
@@ -58,13 +72,27 @@ type ServerMessage struct {
 	Message         string         `json:"message,omitempty"`
 
 	// System metrics (included with machine_info)
-	CpuPercent      float64        `json:"cpu_percent,omitempty"`
-	MemTotal        uint64         `json:"mem_total,omitempty"`
-	MemUsed         uint64         `json:"mem_used,omitempty"`
-	DiskTotal       uint64         `json:"disk_total,omitempty"`
-	DiskUsed        uint64         `json:"disk_used,omitempty"`
-	UptimeSecs      uint64         `json:"uptime_secs,omitempty"`
-	LoadAvg         float64        `json:"load_avg,omitempty"`
+	CpuPercent float64 `json:"cpu_percent,omitempty"`
+	MemTotal   uint64  `json:"mem_total,omitempty"`
+	MemUsed    uint64  `json:"mem_used,omitempty"`
+	DiskTotal  uint64  `json:"disk_total,omitempty"`
+	DiskUsed   uint64  `json:"disk_used,omitempty"`
+	UptimeSecs uint64  `json:"uptime_secs,omitempty"`
+	LoadAvg    float64 `json:"load_avg,omitempty"`
+
+	// JSONL-derived session state fields
+	SessionState      string `json:"session_state,omitempty"`
+	Activity          string `json:"activity,omitempty"`
+	ToolName          string `json:"tool_name,omitempty"`
+	Event             string `json:"event,omitempty"`
+	ContextTokens     int    `json:"context_tokens,omitempty"`
+	ContextLimit      int    `json:"context_limit,omitempty"`
+	CompactionCount   int    `json:"compaction_count,omitempty"`
+	InputTokens       int    `json:"input_tokens,omitempty"`
+	OutputTokens      int    `json:"output_tokens,omitempty"`
+	CacheReadTokens   int    `json:"cache_read_tokens,omitempty"`
+	CacheCreateTokens int    `json:"cache_create_tokens,omitempty"`
+	Timestamp         int64  `json:"timestamp,omitempty"`
 }
 
 // UsageMessage is sent to subscribers when new usage entries are available.
@@ -81,6 +109,11 @@ type Server struct {
 
 	mu          sync.Mutex
 	subscribers map[*safeConn]bool
+
+	sessionMap   *SessionMap
+	jsonlWatcher *JSONLWatcher
+	jsonlStates  map[string]*JSONLSessionState
+	jsonlMu      sync.RWMutex
 }
 
 func newServer(config *Config, poller *Poller) *Server {
@@ -221,6 +254,15 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			s.poller.TrackSession(sessionID, workdir)
+			s.sessionMap.Set(sessionID, claudeUUID, workdir)
+
+			// Start watching JSONL file for this session
+			homeDir, _ := os.UserHomeDir()
+			jsonlPath := s.sessionMap.JSONLPath(sessionID, homeDir)
+			if s.jsonlWatcher != nil && jsonlPath != "" {
+				s.jsonlWatcher.WatchSession(jsonlPath)
+			}
+
 			s.sendMessage(conn, ServerMessage{
 				Type:            "session_created",
 				Session:         sessionID,
@@ -240,6 +282,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			} else {
 				log.Printf("kill_session: success")
 				s.poller.RemoveSession(msg.SessionID)
+				s.sessionMap.Delete(msg.SessionID)
+				s.jsonlMu.Lock()
+				delete(s.jsonlStates, msg.SessionID)
+				s.jsonlMu.Unlock()
 				s.broadcastSessions(s.poller.GetSessions())
 			}
 
@@ -508,4 +554,153 @@ func (s *Server) broadcastSessions(sessions []*SessionInfo) {
 			conn.Close()
 		}
 	}
+}
+
+func (s *Server) broadcastSessionState(tmuxName string, state *JSONLSessionState) {
+	claudeUUID, _, _ := s.sessionMap.Get(tmuxName)
+	input, output, cacheRead, cacheCreate := state.Dedup.SessionTotals()
+	contextTokens := state.Dedup.ContextTokens()
+
+	msg := ServerMessage{
+		Type:              "session_state",
+		Session:           tmuxName,
+		ClaudeSessionID:   claudeUUID,
+		SessionState:      string(state.State),
+		Activity:          state.Activity,
+		ToolName:          state.ToolName,
+		ContextTokens:     contextTokens,
+		ContextLimit:      getContextLimit(state.MaxInputTokens),
+		CompactionCount:   state.CompactCount,
+		InputTokens:       input,
+		OutputTokens:      output,
+		CacheReadTokens:   cacheRead,
+		CacheCreateTokens: cacheCreate,
+	}
+
+	s.mu.Lock()
+	subs := make([]*safeConn, 0, len(s.subscribers))
+	for conn := range s.subscribers {
+		subs = append(subs, conn)
+	}
+	s.mu.Unlock()
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	for _, conn := range subs {
+		if err := conn.safeWrite(websocket.TextMessage, data); err != nil {
+			conn.Close()
+		}
+	}
+}
+
+func (s *Server) broadcastSessionEvent(tmuxName string, event, message string) {
+	msg := ServerMessage{
+		Type:      "session_event",
+		Session:   tmuxName,
+		Event:     event,
+		Message:   message,
+		Timestamp: time.Now().UnixMilli(),
+	}
+
+	s.mu.Lock()
+	subs := make([]*safeConn, 0, len(s.subscribers))
+	for conn := range s.subscribers {
+		subs = append(subs, conn)
+	}
+	s.mu.Unlock()
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	for _, conn := range subs {
+		if err := conn.safeWrite(websocket.TextMessage, data); err != nil {
+			conn.Close()
+		}
+	}
+}
+
+func (s *Server) handleJSONLEvents(events []JSONLEvent, homeDir string) {
+	pathToSession := s.sessionMap.PathPrefixMap(homeDir)
+
+	bySession := make(map[string][]*JSONLEntry)
+	for _, evt := range events {
+		for prefix, tmuxName := range pathToSession {
+			if strings.HasPrefix(evt.FilePath, prefix) {
+				bySession[tmuxName] = append(bySession[tmuxName], evt.Entry)
+				break
+			}
+		}
+	}
+
+	for tmuxName, entries := range bySession {
+		s.processSessionEntries(tmuxName, entries)
+	}
+}
+
+func (s *Server) processSessionEntries(tmuxName string, entries []*JSONLEntry) {
+	var pendingEvents []struct{ event, message string }
+
+	s.jsonlMu.Lock()
+	state, exists := s.jsonlStates[tmuxName]
+	if !exists {
+		state = &JSONLSessionState{Dedup: newDeduplicator()}
+		s.jsonlStates[tmuxName] = state
+	}
+
+	for _, entry := range entries {
+		if entry.Model != "" {
+			state.Model = entry.Model
+		}
+		if entry.RequestID != "" {
+			state.Dedup.Add(entry)
+		}
+		// Track max input tokens for context limit detection
+		if entry.Usage.InputTokens > state.MaxInputTokens {
+			state.MaxInputTokens = entry.Usage.InputTokens
+		}
+		if entry.IsCompactSummary {
+			state.CompactCount++
+			pendingEvents = append(pendingEvents, struct{ event, message string }{"compaction", "Context was compacted"})
+		}
+		for _, block := range entry.ContentBlocks {
+			if block.Type == "tool_result" && block.IsError {
+				state.ErrorDetected = true
+				pendingEvents = append(pendingEvents, struct{ event, message string }{"error", truncateStr(block.Content, 100)})
+			}
+			if block.Type == "tool_result" && containsRateLimit(block.Content) {
+				state.RateLimited = true
+				pendingEvents = append(pendingEvents, struct{ event, message string }{"rate_limit", "Rate limit detected"})
+			}
+		}
+		state.Entries = append(state.Entries, entry)
+		if len(state.Entries) > 20 {
+			state.Entries = state.Entries[len(state.Entries)-20:]
+		}
+	}
+
+	newState := detectJSONLState(state.Entries)
+	if newState != "" {
+		state.State = newState
+	}
+	if last := entries[len(entries)-1]; len(last.ContentBlocks) > 0 {
+		lastBlock := last.ContentBlocks[len(last.ContentBlocks)-1]
+		state.Activity, state.ToolName = deriveActivity(lastBlock)
+	}
+
+	stateCopy := *state
+	s.jsonlMu.Unlock()
+
+	for _, evt := range pendingEvents {
+		s.broadcastSessionEvent(tmuxName, evt.event, evt.message)
+	}
+	s.broadcastSessionState(tmuxName, &stateCopy)
+}
+
+func containsRateLimit(content string) bool {
+	lower := strings.ToLower(content)
+	return strings.Contains(lower, "rate limit") || strings.Contains(lower, "rate_limit") ||
+		(strings.Contains(lower, "exceeded") && strings.Contains(lower, "limit"))
 }
