@@ -16,6 +16,7 @@ model User {
   accounts      Account[]
   servers       Server[]
   usageEntries  UsageEntry[]
+  sessions      Session[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 }
@@ -39,16 +40,17 @@ model Account {
 }
 
 model Server {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   serverId  String
   name      String
   host      String
-  port      Int      @default(9100)
-  token     String   @default("")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  port      Int       @default(9100)
+  token     String    @default("")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions  Session[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([userId, serverId])
 }
@@ -74,4 +76,40 @@ model UsageEntry {
 
   @@unique([requestId, uuid])
   @@index([userId, serverId])
+}
+
+model Session {
+  id              String    @id @default(cuid())
+  tmuxSessionName String
+  claudeSessionId String
+  serverId        String
+  userId          String
+  workdir         String
+  createdAt       DateTime  @default(now())
+  endedAt         DateTime?
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  server    Server            @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  snapshots SessionSnapshot[]
+
+  @@unique([userId, serverId, claudeSessionId])
+  @@index([userId, serverId])
+}
+
+model SessionSnapshot {
+  id                String   @id @default(cuid())
+  sessionId         String
+  contextTokens     Int
+  contextLimit      Int
+  compactionCount   Int
+  state             String
+  inputTokens       Int
+  outputTokens      Int
+  cacheReadTokens   Int
+  cacheCreateTokens Int
+  timestamp         DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestamp])
 }
