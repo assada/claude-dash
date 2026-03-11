@@ -47,13 +47,13 @@ export default function SessionPage({
     if (!server) return null;
     const session = server.sessions.find((s) => s.id === sessionId);
     const jsonlData = session ? {
-      claudeSessionId: (session as any).claudeSessionId,
-      currentActivity: (session as any).currentActivity,
-      toolName: (session as any).toolName,
-      model: (session as any).model,
-      contextTokens: (session as any).contextTokens,
-      contextLimit: (session as any).contextLimit,
-      compactionCount: (session as any).compactionCount,
+      claudeSessionId: session.claudeSessionId,
+      currentActivity: session.currentActivity,
+      toolName: session.toolName,
+      model: session.model,
+      contextTokens: session.contextTokens,
+      contextLimit: session.contextLimit,
+      compactionCount: session.compactionCount,
     } : undefined;
     return {
       sessionName: session?.name || sessionId,

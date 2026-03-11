@@ -75,6 +75,7 @@ class AgentConnection {
       this.online = true;
       this.reconnectDelay = 1000;
       // Socket-level inactivity timeout — auto-resets on any received data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const socket = (this.ws as any)?._socket;
       if (socket) {
         socket.setTimeout(AgentConnection.STALE_TIMEOUT_MS);
@@ -207,7 +208,7 @@ class AgentConnection {
         break;
 
       case "session_created":
-        if (msg.session_id && (msg as any).claude_session_id && this.userId) {
+        if (msg.session_id && msg.claude_session_id && this.userId) {
           this.persistSession(msg).catch(console.error);
         }
         break;
@@ -262,19 +263,19 @@ class AgentConnection {
   }
 
   private handleSessionState(msg: AgentMessage) {
-    const session = this.sessions.find(s => s.id === (msg as any).session_id);
+    const session = this.sessions.find(s => s.id === msg.session_id);
     if (session) {
-      (session as any).claudeSessionId = (msg as any).claude_session_id;
-      (session as any).currentActivity = (msg as any).activity;
-      (session as any).toolName = (msg as any).tool_name;
-      (session as any).model = (msg as any).model;
-      (session as any).contextTokens = (msg as any).context_tokens;
-      (session as any).contextLimit = (msg as any).context_limit;
-      (session as any).compactionCount = (msg as any).compaction_count;
-      (session as any).sessionInputTokens = (msg as any).input_tokens;
-      (session as any).sessionOutputTokens = (msg as any).output_tokens;
-      (session as any).cacheReadTokens = (msg as any).cache_read_tokens;
-      (session as any).cacheCreateTokens = (msg as any).cache_create_tokens;
+      session.claudeSessionId = msg.claude_session_id;
+      session.currentActivity = msg.activity;
+      session.toolName = msg.tool_name;
+      session.model = msg.model;
+      session.contextTokens = msg.context_tokens;
+      session.contextLimit = msg.context_limit;
+      session.compactionCount = msg.compaction_count;
+      session.sessionInputTokens = msg.input_tokens;
+      session.sessionOutputTokens = msg.output_tokens;
+      session.cacheReadTokens = msg.cache_read_tokens;
+      session.cacheCreateTokens = msg.cache_create_tokens;
     }
     this.throttledSnapshot(msg);
   }
@@ -282,9 +283,9 @@ class AgentConnection {
   private handleSessionEvent(msg: AgentMessage) {
     this.lastSessionEvent = {
       session: msg.session_id || "",
-      event: (msg as any).event,
+      event: msg.event || "error",
       message: msg.message || "",
-      timestamp: (msg as any).timestamp || Date.now(),
+      timestamp: msg.timestamp || Date.now(),
     };
   }
 
@@ -296,16 +297,16 @@ class AgentConnection {
           userId_serverId_claudeSessionId: {
             userId: this.userId,
             serverId: this.config.id,
-            claudeSessionId: (msg as any).claude_session_id,
+            claudeSessionId: msg.claude_session_id || "",
           },
         },
         update: {},
         create: {
           tmuxSessionName: msg.session_id || "",
-          claudeSessionId: (msg as any).claude_session_id,
+          claudeSessionId: msg.claude_session_id || "",
           serverId: this.config.id,
           userId: this.userId,
-          workdir: (msg as any).workdir || "",
+          workdir: msg.workdir || "",
         },
       });
     } catch (e) {
@@ -314,7 +315,7 @@ class AgentConnection {
   }
 
   private throttledSnapshot(msg: AgentMessage) {
-    const key = (msg as any).session_id;
+    const key = msg.session_id || "";
     const now = Date.now();
     const lastTime = this.snapshotTimers.get(key) || 0;
     if (now - lastTime < 30_000) return;
@@ -328,7 +329,7 @@ class AgentConnection {
       where: {
         userId: this.userId,
         serverId: this.config.id,
-        claudeSessionId: (msg as any).claude_session_id,
+        claudeSessionId: msg.claude_session_id || "",
       },
     });
     if (!session) return;
@@ -336,14 +337,14 @@ class AgentConnection {
     await prisma.sessionSnapshot.create({
       data: {
         sessionId: session.id,
-        contextTokens: (msg as any).context_tokens || 0,
-        contextLimit: (msg as any).context_limit || 200000,
-        compactionCount: (msg as any).compaction_count || 0,
-        state: (msg as any).session_state || "idle",
-        inputTokens: (msg as any).input_tokens || 0,
-        outputTokens: (msg as any).output_tokens || 0,
-        cacheReadTokens: (msg as any).cache_read_tokens || 0,
-        cacheCreateTokens: (msg as any).cache_create_tokens || 0,
+        contextTokens: msg.context_tokens || 0,
+        contextLimit: msg.context_limit || 200000,
+        compactionCount: msg.compaction_count || 0,
+        state: msg.session_state || "idle",
+        inputTokens: msg.input_tokens || 0,
+        outputTokens: msg.output_tokens || 0,
+        cacheReadTokens: msg.cache_read_tokens || 0,
+        cacheCreateTokens: msg.cache_create_tokens || 0,
       },
     });
     await this.pruneSnapshots(session.id);
@@ -379,10 +380,10 @@ class AgentConnection {
         const snap = session.snapshots[0];
         const tmuxSession = this.sessions.find((s: SessionInfo) => s.id === session.tmuxSessionName);
         if (tmuxSession) {
-          (tmuxSession as any).contextTokens = snap.contextTokens;
-          (tmuxSession as any).contextLimit = snap.contextLimit;
-          (tmuxSession as any).compactionCount = snap.compactionCount;
-          (tmuxSession as any).claudeSessionId = session.claudeSessionId;
+          tmuxSession.contextTokens = snap.contextTokens;
+          tmuxSession.contextLimit = snap.contextLimit;
+          tmuxSession.compactionCount = snap.compactionCount;
+          tmuxSession.claudeSessionId = session.claudeSessionId;
         }
       }
     }

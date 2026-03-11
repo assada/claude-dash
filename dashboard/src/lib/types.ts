@@ -16,6 +16,18 @@ export interface SessionInfo {
   last_line: string;
   serverId: string;
   serverName: string;
+  // JSONL-derived fields (populated from session_state messages)
+  claudeSessionId?: string;
+  currentActivity?: string;
+  toolName?: string;
+  model?: string;
+  contextTokens?: number;
+  contextLimit?: number;
+  compactionCount?: number;
+  sessionInputTokens?: number;
+  sessionOutputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreateTokens?: number;
 }
 
 export interface UsageEntry {
@@ -106,6 +118,27 @@ export interface AgentMessage {
   disk_used?: number;
   uptime_secs?: number;
   load_avg?: number;
+
+  // JSONL session state fields (sent with session_state)
+  claude_session_id?: string;
+  activity?: string;
+  tool_name?: string;
+  model?: string;
+  context_tokens?: number;
+  context_limit?: number;
+  compaction_count?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_tokens?: number;
+  cache_create_tokens?: number;
+  session_state?: string;
+
+  // Session event fields (sent with session_event)
+  event?: "error" | "rate_limit" | "compaction";
+  timestamp?: number;
+
+  // Session created fields
+  workdir?: string;
 }
 
 export interface JSONLSessionData {

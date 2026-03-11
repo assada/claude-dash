@@ -77,26 +77,26 @@ export function useSessionState() {
           const displayState = waitingSet.has(key) ? "waiting" : s.state;
 
           // Persist JSONL data from incoming session
-          if ((s as any).claudeSessionId) {
+          if (s.claudeSessionId) {
             jsonlDataRef.current[key] = {
-              claudeSessionId: (s as any).claudeSessionId,
-              currentActivity: (s as any).currentActivity,
-              toolName: (s as any).toolName,
-              model: (s as any).model,
-              contextTokens: (s as any).contextTokens,
-              contextLimit: (s as any).contextLimit,
-              compactionCount: (s as any).compactionCount,
+              claudeSessionId: s.claudeSessionId,
+              currentActivity: s.currentActivity,
+              toolName: s.toolName,
+              model: s.model,
+              contextTokens: s.contextTokens,
+              contextLimit: s.contextLimit,
+              compactionCount: s.compactionCount,
             };
           }
 
           // Merge JSONL data into session object
-          const sessionObj: any = { ...s, state: displayState };
+          const sessionObj: SessionInfo = { ...s, state: displayState };
           const jsonlData = jsonlDataRef.current[key];
           if (jsonlData) {
             Object.assign(sessionObj, jsonlData);
           }
 
-          return sessionObj as SessionInfo;
+          return sessionObj;
         });
 
       return { ...server, sessions };
@@ -178,16 +178,16 @@ export function useSessionState() {
       if (msg.type === "sessions" && msg.sessions) {
         // Persist JSONL data from incoming sessions
         for (const s of msg.sessions) {
-          if ((s as any).claudeSessionId) {
+          if (s.claudeSessionId) {
             const key = `${msg.serverId}:${s.id}`;
             jsonlDataRef.current[key] = {
-              claudeSessionId: (s as any).claudeSessionId,
-              currentActivity: (s as any).currentActivity,
-              toolName: (s as any).toolName,
-              model: (s as any).model,
-              contextTokens: (s as any).contextTokens,
-              contextLimit: (s as any).contextLimit,
-              compactionCount: (s as any).compactionCount,
+              claudeSessionId: s.claudeSessionId,
+              currentActivity: s.currentActivity,
+              toolName: s.toolName,
+              model: s.model,
+              contextTokens: s.contextTokens,
+              contextLimit: s.contextLimit,
+              compactionCount: s.compactionCount,
             };
           }
         }
@@ -207,12 +207,12 @@ export function useSessionState() {
             const displayState = waitingSet.has(key) ? "waiting" : s.state;
 
             // Merge JSONL data into session object
-            const sessionObj: any = { ...s, state: displayState };
+            const sessionObj: SessionInfo = { ...s, state: displayState };
             const jsonlData = jsonlDataRef.current[key];
             if (jsonlData) {
               Object.assign(sessionObj, jsonlData);
             }
-            return sessionObj as SessionInfo;
+            return sessionObj;
           });
 
         // Check if sessions actually changed
@@ -276,16 +276,16 @@ export function useSessionState() {
         if (msg.sessions) {
           // Persist JSONL data from incoming sessions
           for (const s of msg.sessions) {
-            if ((s as any).claudeSessionId) {
+            if (s.claudeSessionId) {
               const key = `${msg.serverId}:${s.id}`;
               jsonlDataRef.current[key] = {
-                claudeSessionId: (s as any).claudeSessionId,
-                currentActivity: (s as any).currentActivity,
-                toolName: (s as any).toolName,
-                model: (s as any).model,
-                contextTokens: (s as any).contextTokens,
-                contextLimit: (s as any).contextLimit,
-                compactionCount: (s as any).compactionCount,
+                claudeSessionId: s.claudeSessionId,
+                currentActivity: s.currentActivity,
+                toolName: s.toolName,
+                model: s.model,
+                contextTokens: s.contextTokens,
+                contextLimit: s.contextLimit,
+                compactionCount: s.compactionCount,
               };
             }
           }
@@ -298,12 +298,12 @@ export function useSessionState() {
               const displayState = waitingSet.has(key) ? "waiting" : s.state;
 
               // Merge JSONL data into session object
-              const sessionObj: any = { ...s, state: displayState };
+              const sessionObj: SessionInfo = { ...s, state: displayState };
               const jsonlData = jsonlDataRef.current[key];
               if (jsonlData) {
                 Object.assign(sessionObj, jsonlData);
               }
-              return sessionObj as SessionInfo;
+              return sessionObj;
             });
           updated.sessions = newSessions;
           changed = true;
