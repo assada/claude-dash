@@ -198,7 +198,7 @@ func (w *JSONLWatcher) debouncedProcess(path string) {
 	if timer, exists := w.debounce[path]; exists {
 		timer.Stop()
 	}
-	w.debounce[path] = time.AfterFunc(100*time.Millisecond, func() {
+	w.debounce[path] = time.AfterFunc(30*time.Millisecond, func() {
 		w.processFile(path)
 	})
 }
