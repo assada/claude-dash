@@ -696,9 +696,19 @@ func (s *Server) processSessionEntries(tmuxName string, entries []*JSONLEntry) {
 	if newState != "" {
 		state.State = newState
 	}
-	if last := entries[len(entries)-1]; len(last.ContentBlocks) > 0 {
-		lastBlock := last.ContentBlocks[len(last.ContentBlocks)-1]
-		state.Activity, state.ToolName = deriveActivity(lastBlock)
+
+	// Derive activity from last entry that has content blocks
+	for i := len(entries) - 1; i >= 0; i-- {
+		if len(entries[i].ContentBlocks) > 0 {
+			lastBlock := entries[i].ContentBlocks[len(entries[i].ContentBlocks)-1]
+			state.Activity, state.ToolName = deriveActivity(lastBlock)
+			break
+		}
+	}
+	// Clear activity when idle
+	if state.State == StateIdle {
+		state.Activity = ""
+		state.ToolName = ""
 	}
 
 	stateCopy := *state
