@@ -108,6 +108,27 @@ export interface AgentMessage {
   load_avg?: number;
 }
 
+export interface JSONLSessionData {
+  claudeSessionId?: string;
+  currentActivity?: string;
+  toolName?: string;
+  model?: string;
+  contextTokens?: number;
+  contextLimit?: number;
+  compactionCount?: number;
+  sessionInputTokens?: number;
+  sessionOutputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreateTokens?: number;
+}
+
+export interface SessionEvent {
+  session: string;
+  event: "error" | "rate_limit" | "compaction";
+  message: string;
+  timestamp: number;
+}
+
 // Browser → Dashboard messages
 export interface BrowserMessage {
   type: string;

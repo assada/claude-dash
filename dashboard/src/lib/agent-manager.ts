@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus, ServerUsage, SessionUsage } from "./types";
+import type { AgentMessage, SessionInfo, ServerMetrics, ServerStatus, ServerUsage, SessionUsage, SessionEvent } from "./types";
 import { calculateEntryCost } from "./pricing";
 import { prisma } from "./prisma";
 
@@ -11,7 +11,7 @@ export interface ServerConfig {
   token: string;
 }
 
-export type UpdateType = "sessions" | "metrics" | "server_info" | "usage" | "connectivity";
+export type UpdateType = "sessions" | "metrics" | "server_info" | "usage" | "connectivity" | "session_event";
 type StateCallback = (servers: ServerStatus[]) => void;
 type TargetedCallback = (update: TargetedUpdate) => void;
 
@@ -23,6 +23,7 @@ export interface TargetedUpdate {
   serverInfo?: { hostname?: string; os?: string; agentVersion?: string; dirs?: string[] };
   usage?: ServerUsage;
   online?: boolean;
+  sessionEvent?: SessionEvent | null;
 }
 
 class AgentConnection {
@@ -40,6 +41,9 @@ class AgentConnection {
   public sessions: SessionInfo[] = [];
   public metrics?: ServerMetrics;
   public serverUsage?: ServerUsage;
+
+  public lastSessionEvent: SessionEvent | null = null;
+  private snapshotTimers = new Map<string, number>();
 
   constructor(
     public config: ServerConfig,
@@ -79,6 +83,9 @@ class AgentConnection {
       this.send({ type: "machine_info" });
       this.loadUsageFromDB().catch((e) =>
         console.warn(`[agent] Failed to load usage from DB:`, (e as Error).message)
+      );
+      this.loadLatestSnapshots().catch((e) =>
+        console.warn(`[agent] Failed to load snapshots from DB:`, (e as Error).message)
       );
       this.onEvent("connectivity");
     });
@@ -188,6 +195,22 @@ class AgentConnection {
         }
         break;
       }
+
+      case "session_state":
+        this.handleSessionState(msg);
+        this.onEvent("sessions");
+        break;
+
+      case "session_event":
+        this.handleSessionEvent(msg);
+        this.onEvent("session_event");
+        break;
+
+      case "session_created":
+        if (msg.session_id && (msg as any).claude_session_id && this.userId) {
+          this.persistSession(msg).catch(console.error);
+        }
+        break;
     }
   }
 
@@ -236,6 +259,133 @@ class AgentConnection {
     }
 
     this.serverUsage = { totalCost, totalTokens, sessionUsages };
+  }
+
+  private handleSessionState(msg: AgentMessage) {
+    const session = this.sessions.find(s => s.id === (msg as any).session_id);
+    if (session) {
+      (session as any).claudeSessionId = (msg as any).claude_session_id;
+      (session as any).currentActivity = (msg as any).activity;
+      (session as any).toolName = (msg as any).tool_name;
+      (session as any).model = (msg as any).model;
+      (session as any).contextTokens = (msg as any).context_tokens;
+      (session as any).contextLimit = (msg as any).context_limit;
+      (session as any).compactionCount = (msg as any).compaction_count;
+      (session as any).sessionInputTokens = (msg as any).input_tokens;
+      (session as any).sessionOutputTokens = (msg as any).output_tokens;
+      (session as any).cacheReadTokens = (msg as any).cache_read_tokens;
+      (session as any).cacheCreateTokens = (msg as any).cache_create_tokens;
+    }
+    this.throttledSnapshot(msg);
+  }
+
+  private handleSessionEvent(msg: AgentMessage) {
+    this.lastSessionEvent = {
+      session: msg.session_id || "",
+      event: (msg as any).event,
+      message: msg.message || "",
+      timestamp: (msg as any).timestamp || Date.now(),
+    };
+  }
+
+  private async persistSession(msg: AgentMessage) {
+    if (!this.userId) return;
+    try {
+      await prisma.session.upsert({
+        where: {
+          userId_serverId_claudeSessionId: {
+            userId: this.userId,
+            serverId: this.config.id,
+            claudeSessionId: (msg as any).claude_session_id,
+          },
+        },
+        update: {},
+        create: {
+          tmuxSessionName: msg.session_id || "",
+          claudeSessionId: (msg as any).claude_session_id,
+          serverId: this.config.id,
+          userId: this.userId,
+          workdir: (msg as any).workdir || "",
+        },
+      });
+    } catch (e) {
+      console.error("Failed to persist session:", e);
+    }
+  }
+
+  private throttledSnapshot(msg: AgentMessage) {
+    const key = (msg as any).session_id;
+    const now = Date.now();
+    const lastTime = this.snapshotTimers.get(key) || 0;
+    if (now - lastTime < 30_000) return;
+    this.snapshotTimers.set(key, now);
+    this.saveSnapshot(msg).catch(console.error);
+  }
+
+  private async saveSnapshot(msg: AgentMessage) {
+    if (!this.userId) return;
+    const session = await prisma.session.findFirst({
+      where: {
+        userId: this.userId,
+        serverId: this.config.id,
+        claudeSessionId: (msg as any).claude_session_id,
+      },
+    });
+    if (!session) return;
+
+    await prisma.sessionSnapshot.create({
+      data: {
+        sessionId: session.id,
+        contextTokens: (msg as any).context_tokens || 0,
+        contextLimit: (msg as any).context_limit || 200000,
+        compactionCount: (msg as any).compaction_count || 0,
+        state: (msg as any).session_state || "idle",
+        inputTokens: (msg as any).input_tokens || 0,
+        outputTokens: (msg as any).output_tokens || 0,
+        cacheReadTokens: (msg as any).cache_read_tokens || 0,
+        cacheCreateTokens: (msg as any).cache_create_tokens || 0,
+      },
+    });
+    await this.pruneSnapshots(session.id);
+  }
+
+  private async pruneSnapshots(sessionDbId: string) {
+    const count = await prisma.sessionSnapshot.count({
+      where: { sessionId: sessionDbId },
+    });
+    if (count > 100) {
+      const oldest = await prisma.sessionSnapshot.findMany({
+        where: { sessionId: sessionDbId },
+        orderBy: { timestamp: "asc" },
+        take: count - 100,
+        select: { id: true },
+      });
+      await prisma.sessionSnapshot.deleteMany({
+        where: { id: { in: oldest.map((s: { id: string }) => s.id) } },
+      });
+    }
+  }
+
+  private async loadLatestSnapshots(): Promise<void> {
+    if (!this.userId) return;
+    const sessions = await prisma.session.findMany({
+      where: { userId: this.userId, serverId: this.config.id },
+      include: {
+        snapshots: { orderBy: { timestamp: "desc" }, take: 1 },
+      },
+    });
+    for (const session of sessions) {
+      if (session.snapshots.length > 0) {
+        const snap = session.snapshots[0];
+        const tmuxSession = this.sessions.find((s: SessionInfo) => s.id === session.tmuxSessionName);
+        if (tmuxSession) {
+          (tmuxSession as any).contextTokens = snap.contextTokens;
+          (tmuxSession as any).contextLimit = snap.contextLimit;
+          (tmuxSession as any).compactionCount = snap.compactionCount;
+          (tmuxSession as any).claudeSessionId = session.claudeSessionId;
+        }
+      }
+    }
   }
 
   send(msg: Record<string, unknown>) {
@@ -507,6 +657,8 @@ class AgentManager {
         return { ...base, usage: conn.serverUsage };
       case "connectivity":
         return { ...base, online: conn.online, sessions: conn.sessions };
+      case "session_event":
+        return { ...base, sessionEvent: conn.lastSessionEvent };
     }
   }
 
