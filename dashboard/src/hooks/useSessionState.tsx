@@ -215,15 +215,20 @@ export function useSessionState() {
             return sessionObj;
           });
 
-        // Check if sessions actually changed
+        // Check if sessions actually changed (including JSONL-derived fields)
         if (
           server.sessions.length !== newSessions.length ||
-          !server.sessions.every((ss, j) =>
-            ss.id === newSessions[j]?.id &&
-            ss.state === newSessions[j]?.state &&
-            ss.last_line === newSessions[j]?.last_line &&
-            ss.state_changed_at === newSessions[j]?.state_changed_at
-          )
+          !server.sessions.every((ss, j) => {
+            const ns = newSessions[j];
+            return ns &&
+              ss.id === ns.id &&
+              ss.state === ns.state &&
+              ss.last_line === ns.last_line &&
+              ss.state_changed_at === ns.state_changed_at &&
+              ss.currentActivity === ns.currentActivity &&
+              ss.contextTokens === ns.contextTokens &&
+              ss.compactionCount === ns.compactionCount;
+          })
         ) {
           updated.sessions = newSessions;
           changed = true;
