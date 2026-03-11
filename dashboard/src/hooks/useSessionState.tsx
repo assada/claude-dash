@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from "react";
-import type { ServerStatus, SessionState, SessionInfo, ServerMetrics, ServerUsage } from "@/lib/types";
+import type { ServerStatus, SessionState, SessionInfo, ServerMetrics, ServerUsage, JSONLSessionData, SessionEvent } from "@/lib/types";
 import { wsUrl } from "@/lib/format";
 
 type SessionStateValue = ReturnType<typeof useSessionState>;
@@ -35,6 +35,14 @@ export function useSessionState() {
   const waitingSetRef = useRef<Set<string>>(new Set());
   // Sessions currently being viewed (session page is mounted)
   const activeViewsRef = useRef<Set<string>>(new Set());
+  // Store JSONL data in a ref that persists across renders
+  const jsonlDataRef = useRef<Record<string, JSONLSessionData>>({});
+  // Session event callback
+  const sessionEventCallbackRef = useRef<((event: SessionEvent) => void) | null>(null);
+
+  const onSessionEvent = useCallback((handler: (event: SessionEvent) => void) => {
+    sessionEventCallbackRef.current = handler;
+  }, []);
 
   const processServers = useCallback((incoming: ServerStatus[]) => {
     const prevStates = prevStatesRef.current;
@@ -68,7 +76,27 @@ export function useSessionState() {
           // Override state if in waiting set
           const displayState = waitingSet.has(key) ? "waiting" : s.state;
 
-          return { ...s, state: displayState };
+          // Persist JSONL data from incoming session
+          if ((s as any).claudeSessionId) {
+            jsonlDataRef.current[key] = {
+              claudeSessionId: (s as any).claudeSessionId,
+              currentActivity: (s as any).currentActivity,
+              toolName: (s as any).toolName,
+              model: (s as any).model,
+              contextTokens: (s as any).contextTokens,
+              contextLimit: (s as any).contextLimit,
+              compactionCount: (s as any).compactionCount,
+            };
+          }
+
+          // Merge JSONL data into session object
+          const sessionObj: any = { ...s, state: displayState };
+          const jsonlData = jsonlDataRef.current[key];
+          if (jsonlData) {
+            Object.assign(sessionObj, jsonlData);
+          }
+
+          return sessionObj as SessionInfo;
         });
 
       return { ...server, sessions };
@@ -126,7 +154,14 @@ export function useSessionState() {
     serverInfo?: { hostname?: string; os?: string; agentVersion?: string; dirs?: string[] };
     usage?: ServerUsage;
     online?: boolean;
+    sessionEvent?: SessionEvent;
   }) => {
+    // Handle session events (fire callback, no state update needed)
+    if (msg.type === "session_event" && msg.sessionEvent) {
+      sessionEventCallbackRef.current?.(msg.sessionEvent);
+      return;
+    }
+
     const prevStates = prevStatesRef.current;
     const waitingSet = waitingSetRef.current;
     const activeViews = activeViewsRef.current;
@@ -141,6 +176,22 @@ export function useSessionState() {
       let updated = { ...server };
 
       if (msg.type === "sessions" && msg.sessions) {
+        // Persist JSONL data from incoming sessions
+        for (const s of msg.sessions) {
+          if ((s as any).claudeSessionId) {
+            const key = `${msg.serverId}:${s.id}`;
+            jsonlDataRef.current[key] = {
+              claudeSessionId: (s as any).claudeSessionId,
+              currentActivity: (s as any).currentActivity,
+              toolName: (s as any).toolName,
+              model: (s as any).model,
+              contextTokens: (s as any).contextTokens,
+              contextLimit: (s as any).contextLimit,
+              compactionCount: (s as any).compactionCount,
+            };
+          }
+        }
+
         const newSessions = msg.sessions
           .filter((s) => s.state !== "dead")
           .map((s) => {
@@ -154,7 +205,14 @@ export function useSessionState() {
             if (s.state !== "idle") waitingSet.delete(key);
             prevStates.set(key, s.state);
             const displayState = waitingSet.has(key) ? "waiting" : s.state;
-            return { ...s, state: displayState };
+
+            // Merge JSONL data into session object
+            const sessionObj: any = { ...s, state: displayState };
+            const jsonlData = jsonlDataRef.current[key];
+            if (jsonlData) {
+              Object.assign(sessionObj, jsonlData);
+            }
+            return sessionObj as SessionInfo;
           });
 
         // Check if sessions actually changed
@@ -216,13 +274,36 @@ export function useSessionState() {
         }
         // Also update sessions on connectivity change
         if (msg.sessions) {
+          // Persist JSONL data from incoming sessions
+          for (const s of msg.sessions) {
+            if ((s as any).claudeSessionId) {
+              const key = `${msg.serverId}:${s.id}`;
+              jsonlDataRef.current[key] = {
+                claudeSessionId: (s as any).claudeSessionId,
+                currentActivity: (s as any).currentActivity,
+                toolName: (s as any).toolName,
+                model: (s as any).model,
+                contextTokens: (s as any).contextTokens,
+                contextLimit: (s as any).contextLimit,
+                compactionCount: (s as any).compactionCount,
+              };
+            }
+          }
+
           const newSessions = msg.sessions
             .filter((s) => s.state !== "dead")
             .map((s) => {
               const key = `${msg.serverId}:${s.id}`;
               prevStates.set(key, s.state);
               const displayState = waitingSet.has(key) ? "waiting" : s.state;
-              return { ...s, state: displayState };
+
+              // Merge JSONL data into session object
+              const sessionObj: any = { ...s, state: displayState };
+              const jsonlData = jsonlDataRef.current[key];
+              if (jsonlData) {
+                Object.assign(sessionObj, jsonlData);
+              }
+              return sessionObj as SessionInfo;
             });
           updated.sessions = newSessions;
           changed = true;
@@ -344,7 +425,8 @@ export function useSessionState() {
       killSession,
       markSeen,
       startViewing,
+      onSessionEvent,
     }),
-    [servers, createSession, killSession, markSeen, startViewing]
+    [servers, createSession, killSession, markSeen, startViewing, onSessionEvent]
   );
 }
